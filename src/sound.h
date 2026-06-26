@@ -20,9 +20,11 @@ enum {
     SND_MAGNET   = 14   /* przyciaganie - magnet pull        */
 };
 
-void snd_init(void);
-void snd_play(unsigned char id);
-void snd_update(void);   /* advance the active effect; call once per frame */
-void snd_stop(void);     /* silence and cancel the active effect */
+/* GBC port: sound.c is a switchable-bank module, so every entry point is
+   __banked (a non-__banked function in a bank silently corrupts memory). */
+void snd_init(void) __banked;
+void snd_play(unsigned char id) __banked;
+void snd_update(void) __banked;   /* advance the active effect; call once per frame */
+void snd_stop(void) __banked;     /* silence and cancel the active effect */
 
 #endif

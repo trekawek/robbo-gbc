@@ -1,74 +1,84 @@
-# Robbo for Game Boy Color — build via GBDK-2020
+# Robbo for Game Boy Color - a port of GNU Robbo's game logic, built with GBDK-2020.
 GBDK   := third_party/gbdk
 LCC    := $(GBDK)/bin/lcc
 PY     := python3
-
 SRCDIR := src
 GENDIR := src/gen
 BUILD  := build
 ROM    := $(BUILD)/robbo.gbc
 
-# CGB ROM, MBC5 (0x1B), enough banks for level data
-LCCFLAGS := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB
-# -autobank: let bankpack place each `#pragma bank 255` module (the level packs)
-# into a free ROM bank automatically; HOME code stays in bank 0
+# Assets converted at build time: the Atari original supplies the font, sound
+# tables and instruction text; the levels come from GNU Robbo's original.dat.
+ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
+GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
+
+LCCFLAGS  := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size
 LINKFLAGS := $(LCCFLAGS) -autobank
+# board.c is one huge translation unit (GNU Robbo's 940-line update_game, split
+# into upd_g1..g5): cap SDCC register allocation so it compiles in ~1min.
+BOARDFLAGS := $(LCCFLAGS) -Wf--max-allocs-per-node3000
 
-# Original game source (for asset conversion)
-ORIG := /tmp/lkavalon-atari/robbo
+# generated assets
+GFX    := $(GENDIR)/gfx_tiles.c
+GFXH   := $(GENDIR)/gfx_tiles.h
+SOUNDH := $(GENDIR)/sounds.h
+INSTRH := $(GENDIR)/instr.h
+# generated level data (from GNU Robbo original.dat): HOME index + banked grids
+LEVELS := $(SRCDIR)/levels_idx.c $(SRCDIR)/levels_d0.c $(SRCDIR)/levels_d1.c $(SRCDIR)/levels_d2.c
 
-# Generated sources
-GEN := $(GENDIR)/gfx_tiles.c $(GENDIR)/levels_c1.c \
-       $(GENDIR)/levels_c2.c $(GENDIR)/levels_c3.c
-# Generated headers (included only, no matching .c)
-GENH := $(GENDIR)/instr.h $(GENDIR)/sounds.h
-HANDSRC := $(wildcard $(SRCDIR)/*.c)
-SRCS := $(HANDSRC) $(GEN)
-OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS)))
+HAND := $(SRCDIR)/globals.c $(SRCDIR)/glue.c $(SRCDIR)/render.c $(SRCDIR)/loader.c \
+        $(SRCDIR)/hud.c $(SRCDIR)/atari_pal.c $(SRCDIR)/menu.c \
+        $(SRCDIR)/object_tables.c $(SRCDIR)/sound.c
+SRCS := $(HAND) $(LEVELS) $(GFX)
+OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS))) \
+        $(BUILD)/board.o $(BUILD)/board_upd.o $(BUILD)/board_robbo.o
+# every object includes one or more generated headers (below: order-only dep)
+GENHDRS := $(GFXH) $(SOUNDH) $(INSTRH) $(SRCDIR)/levels_data.h
 
-VPATH := $(SRCDIR):$(GENDIR)
-
-.PHONY: all clean assets run
-
+.PHONY: all clean
 all: $(ROM)
 
-# --- asset generation ---
-assets: $(GEN) $(GENH)
+# make the generated headers exist before any compile (order-only: regenerating
+# a header doesn't force a full rebuild).  Placed after `all` so it stays default.
+$(OBJS): | $(GENHDRS)
 
-$(GENDIR)/gfx_tiles.c $(GENDIR)/gfx_tiles.h: tools/convert_font.py
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+# --- asset generation ---
+$(GFX) $(GFXH): tools/convert_font.py
 	$(PY) tools/convert_font.py "$(ORIG)" $(GENDIR)
 
-$(GENDIR)/instr.h: tools/extract_instr.py
-	$(PY) tools/extract_instr.py "$(ORIG)" $(GENDIR)
-
-$(GENDIR)/sounds.h: tools/convert_sound.py
+$(SOUNDH): tools/convert_sound.py
 	$(PY) tools/convert_sound.py "$(ORIG)" $(GENDIR)
 
-$(GENDIR)/levels_c1.c $(GENDIR)/levels_c1.h: tools/convert_levels.py
-	$(PY) tools/convert_levels.py "$(ORIG)/d2/C1.txt" $(GENDIR) c1
+$(INSTRH): tools/extract_instr.py
+	$(PY) tools/extract_instr.py "$(ORIG)" $(GENDIR)
 
-$(GENDIR)/levels_c2.c $(GENDIR)/levels_c2.h: tools/convert_levels.py
-	$(PY) tools/convert_levels.py "$(ORIG)/d2/C2.txt" $(GENDIR) c2
-
-$(GENDIR)/levels_c3.c $(GENDIR)/levels_c3.h: tools/convert_levels.py
-	$(PY) tools/convert_levels.py "$(ORIG)/d2/C3.txt" $(GENDIR) c3
+$(LEVELS) $(SRCDIR)/levels_data.h: tools/convert_gnu_levels.py
+	$(PY) tools/convert_gnu_levels.py "$(GNUROBBO)/data/levels/original.dat" $(SRCDIR)
 
 # --- compile ---
-$(BUILD)/%.o: %.c | $(GEN) $(GENH)
-	@mkdir -p $(BUILD)
+# board.c / board_upd.c are large: capped register allocation
+$(BUILD)/board.o: $(SRCDIR)/board.c | $(BUILD)
+	$(LCC) $(BOARDFLAGS) -c -o $@ $<
+$(BUILD)/board_upd.o: $(SRCDIR)/board_upd.c | $(BUILD)
+	$(LCC) $(BOARDFLAGS) -c -o $@ $<
+
+$(BUILD)/%.o: $(SRCDIR)/%.c | $(BUILD)
 	$(LCC) $(LCCFLAGS) -c -o $@ $<
 
-# rebuild title.o when the generated instruction text changes
-$(BUILD)/title.o: $(GENDIR)/instr.h
-# rebuild sound.o when the generated sound tables change
-$(BUILD)/sound.o: $(GENDIR)/sounds.h
+$(BUILD)/gfx_tiles.o: $(GFX) | $(BUILD)
+	$(LCC) $(LCCFLAGS) -c -o $@ $<
+
+# generated-header dependencies (so these .o rebuild when assets regenerate)
+$(BUILD)/render.o: $(GFXH)
+$(BUILD)/menu.o:   $(INSTRH)
+$(BUILD)/sound.o:  $(SOUNDH)
 
 $(ROM): $(OBJS)
 	$(LCC) $(LINKFLAGS) -o $@ $(OBJS)
 	@echo "Built $@"
 
-run: $(ROM)
-	bgb $(ROM)
-
 clean:
-	rm -rf $(BUILD) $(GENDIR)/*.c $(GENDIR)/*.h
+	rm -rf $(BUILD)

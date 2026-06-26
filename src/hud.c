@@ -1,64 +1,52 @@
+/* GBC HUD for the gnu-robbo port: a window-layer status bar (bottom 2 rows)
+   showing screws-left, keys, ammo and level.  Reads gnu-robbo's robbo/level_packs
+   state (no lives/score - gnu-robbo restarts the level on death).
+
+   This is a switchable-bank module: every function is __banked (a non-__banked
+   function in a bank corrupts).  The I.FNT tiles + HUD palette are loaded by
+   render_gr (which already holds GFX_BANK), so the HUD itself never SWITCH_ROMs. */
+#pragma bank 255
 #include <gb/gb.h>
-#include <gb/cgb.h>
-#include "hud.h"
 #include "game.h"
-#include "object_tables.h"
-#include "gen/gfx_tiles.h"
 
-/* Black status bar: 1-col icon + 2 tall-digit count, spaced into groups:
-   screws  lives  keys  bullets  planet.  Drawn into the window layer.
-   hud_draw() is cheap (change-cached) and MUST run inside VBlank. */
 #define TXT_BASE 128
-#define HUD_PAL  7
-#define DTOP(n)  (TXT_BASE + 11 + (n))    /* I.FNT digit top half  */
-#define DBOT(n)  (TXT_BASE + 1  + (n))    /* I.FNT digit bottom half */
+#define HUD_PAL  6                          /* palette 6 (boom merged into hazard) */
+#define DTOP(n)  (TXT_BASE + 11 + (n))      /* I.FNT digit top half  */
+#define DBOT(n)  (TXT_BASE + 1  + (n))      /* I.FNT digit bottom half */
 
-static unsigned int  c_scr;
-static unsigned char c_liv, c_key, c_amm, c_lvl, force;
+static unsigned int c_scr;
+static unsigned char c_key, c_amm, c_lvl, force;
 
-static void wput(unsigned char x, unsigned char y, unsigned char tile) {
+void hwput(unsigned char x, unsigned char y, unsigned char tile) __banked {
     set_win_tiles(x, y, 1, 1, &tile);
     VBK_REG = 1; { unsigned char p = HUD_PAL; set_win_tiles(x, y, 1, 1, &p); } VBK_REG = 0;
 }
-/* full 16x16 I.FNT status icon = 4 consecutive chars c0,c0+1 / c0+2,c0+3 */
-static void wicon2(unsigned char x, unsigned char c0) {
-    wput(x,   0, TXT_BASE + c0);     wput(x+1, 0, TXT_BASE + c0 + 1);
-    wput(x,   1, TXT_BASE + c0 + 2); wput(x+1, 1, TXT_BASE + c0 + 3);
+void hwicon2(unsigned char x, unsigned char c0) __banked {
+    hwput(x,   0, TXT_BASE + c0);     hwput(x+1, 0, TXT_BASE + c0 + 1);
+    hwput(x,   1, TXT_BASE + c0 + 2); hwput(x+1, 1, TXT_BASE + c0 + 3);
 }
-static void wdig(unsigned char x, unsigned char n) { wput(x, 0, DTOP(n)); wput(x, 1, DBOT(n)); }
-static void wnum(unsigned char x, unsigned char v, unsigned char nd) {
+void hwdig(unsigned char x, unsigned char n) __banked { hwput(x, 0, DTOP(n)); hwput(x, 1, DBOT(n)); }
+void hwnum(unsigned char x, unsigned char v, unsigned char nd) __banked {
     unsigned char i;
-    for (i = 0; i < nd; i++) { wdig(x + (nd - 1 - i), v % 10); v /= 10; }
+    for (i = 0; i < nd; i++) { hwdig(x + (nd - 1 - i), v % 10); v /= 10; }
 }
 
-/* (re)draw the static icons + black strip; forces the next hud_draw to repaint */
-/* Original status-bar icons from I.FNT (white outlines), full 16x16. The icon
-   chars (verified against the rendered glyphs): 77=screw, 73=creature, 85=key,
-   81=gun, 69=planet - matching the original HUD order. */
-void hud_icons(void) {
+void hud_gr_init(void) __banked {
     unsigned char x;
-    for (x = 0; x < 20; x++) { wput(x, 0, 0x40); wput(x, 1, 0x40); }
-    wicon2(0,  77);   /* screws  - screw    */
-    wicon2(4,  73);   /* lives   - creature */
-    wicon2(8,  85);   /* keys    - key      */
-    wicon2(12, 81);   /* bullets - gun      */
-    wicon2(16, 69);   /* planet  - planet   */
+    for (x = 0; x < 20; x++) { hwput(x, 0, 0x40); hwput(x, 1, 0x40); }   /* black bar */
+    hwicon2(0,  77);   /* screws  - screw  */
+    hwicon2(5,  85);   /* keys    - key    */
+    hwicon2(10, 81);   /* ammo    - gun    */
+    hwicon2(15, 69);   /* level   - planet */
     force = 1;
 }
 
-void hud_init(void) {
-    const palette_color_t pal[4] = { 0x0000, 0x7FFF, 0x167A, 0x7FFF };
-    SWITCH_ROM(GFX_BANK);                          /* ifnt tiles live in a banked module */
-    set_bkg_data(TXT_BASE, 96, ifnt_tiles);
-    set_bkg_palette(HUD_PAL, 1, pal);
-    hud_icons();
-}
-
-void hud_draw(void) {
-    if (force || gs.screws != c_scr) { wnum(2,  (unsigned char)gs.screws, 2); c_scr = gs.screws; }
-    if (force || gs.lives  != c_liv) { wnum(6,  gs.lives, 2);     c_liv = gs.lives; }
-    if (force || gs.keys   != c_key) { wnum(10, gs.keys, 2);      c_key = gs.keys; }
-    if (force || gs.ammo   != c_amm) { wnum(14, gs.ammo, 2);      c_amm = gs.ammo; }
-    if (force || gs.level  != c_lvl) { wnum(18, gs.level + 1, 2); c_lvl = gs.level; }
+/* refresh counters; cheap/change-cached; call in VBlank */
+void hud_gr_draw(void) __banked {
+    unsigned char lvl = (unsigned char)level_packs[selected_pack].level_selected;
+    if (force || (unsigned int)robbo.screws != c_scr) { hwnum(2,  (unsigned char)robbo.screws, 2); c_scr = robbo.screws; }
+    if (force || (unsigned char)robbo.keys    != c_key) { hwnum(7,  (unsigned char)robbo.keys, 2);  c_key = robbo.keys; }
+    if (force || (unsigned char)robbo.bullets != c_amm) { hwnum(12, (unsigned char)robbo.bullets, 2); c_amm = robbo.bullets; }
+    if (force || lvl != c_lvl) { hwnum(17, lvl, 2); c_lvl = lvl; }
     force = 0;
 }

@@ -1,3 +1,4 @@
+#pragma bank 255
 #include <gb/gb.h>
 #include "sound.h"
 #include "gen/sounds.h"
@@ -7,7 +8,7 @@
    Tonal steps play on square channel 1, noisy steps on noise channel 4.
    (The original mixes up to 4 POKEY voices; here one effect plays at a time.) */
 
-void snd_init(void) {
+void snd_init(void) __banked {
     NR52_REG = 0x80;   /* sound on */
     NR51_REG = 0xFF;   /* all channels, both sides */
     NR50_REG = 0x77;   /* full volume L/R */
@@ -26,7 +27,7 @@ static const unsigned char PRIO[SND_COUNT] = {
     1, /*DESTROY*/  2, /*ENTER*/    3, /*WIN*/      3, /*CAPSULE*/   2  /*MAGNET*/
 };
 
-static void play_step(void) {
+void play_step(void) __banked {
     const unsigned char *p = seq + (unsigned int)sstep * 3;
     unsigned char b0 = p[0], vol = b0 & 0x0F;
     if (vol == 0) {                          /* silence both channels */
@@ -48,7 +49,7 @@ static void play_step(void) {
     }
 }
 
-void snd_play(unsigned char id) {
+void snd_play(unsigned char id) __banked {
     if (id >= SND_COUNT) return;
     if (seq && PRIO[id] < cur_prio) return;   /* don't cut a more important effect */
     seq = SND_SEQ[id];
@@ -58,7 +59,7 @@ void snd_play(unsigned char id) {
     play_step();
 }
 
-void snd_stop(void) {
+void snd_stop(void) __banked {
     seq = 0;
     NR12_REG = 0x00;
     NR42_REG = 0x00;
@@ -66,7 +67,7 @@ void snd_stop(void) {
 
 /* Advance by the number of VBlanks actually elapsed (not loop iterations), so
    each step lasts exactly 4 frames like the original, regardless of framerate. */
-void snd_update(void) {
+void snd_update(void) __banked {
     unsigned char now;
     if (!seq) return;
     now = (unsigned char)sys_time;

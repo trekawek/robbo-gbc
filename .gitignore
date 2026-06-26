@@ -1,0 +1,11 @@
+build/
+third_party/
+.venv/
+src/gen/*.c
+src/gen/*.h
+# generated level data (from GNU Robbo original.dat, via `make`)
+src/levels_idx.c
+src/levels_d0.c
+src/levels_d1.c
+src/levels_d2.c
+src/levels_data.h
