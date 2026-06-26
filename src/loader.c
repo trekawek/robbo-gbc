@@ -4,6 +4,14 @@
 #include "game.h"
 #include "levels_data.h"
 
+/* Debug test level.  Set to 1 to replace EVERY level with a tiny board -
+   Robbo, a screw, then the exit capsule in a row - for exercising the
+   screw -> exit-open -> capsule -> next-level path in isolation.  0 = off.
+   Override without editing: `make LCCFLAGS_EXTRA=-DTEST_LEVEL=1`. */
+#ifndef TEST_LEVEL
+#define TEST_LEVEL 0
+#endif
+
 /* verbatim from gnu-robbo levels.c */
 int transform_char(char c)
 {
@@ -54,6 +62,31 @@ int load_level_data(int level_number)
     int idx = level_number - 1;
     const unsigned char *grid, *add;
     int w, h, x, y, t, n, r;
+
+#if TEST_LEVEL
+    /* Level 1 only: tiny debug board (walls all around, row 1 = Robbo, screw,
+       capsule, gap).  Completing it advances into the REAL level 2, so this
+       exercises the screw -> exit-open -> capsule -> next-(real-)level path.
+       Levels 2+ load their normal data below. */
+    if (level_number == 1) {
+        level.w = 6; level.h = 3; level.colour = 0;
+        for (y = 0; y < 3; y++) {
+            for (x = 0; x < 6; x++) {
+                t = WALL;
+                if (y == 1) {
+                    if (x == 1) t = ROBBO;
+                    else if (x == 2) t = SCREW;
+                    else if (x == 3) t = CAPSULE;
+                    else if (x == 4) t = EMPTY_FIELD;
+                }
+                board[x][y].type = t;
+                create_object(x, y, t);
+                if (t == SCREW) robbo.screws++;
+            }
+        }
+        return FALSE;
+    }
+#endif
 
     if (idx < 0 || idx >= GR_NLEVELS) return TRUE;
     w = gr_level_w[idx];

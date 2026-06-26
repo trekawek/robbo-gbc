@@ -12,7 +12,7 @@ ROM    := $(BUILD)/robbo.gbc
 ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
 GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
 
-LCCFLAGS  := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size
+LCCFLAGS  := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size $(LCCFLAGS_EXTRA)
 LINKFLAGS := $(LCCFLAGS) -autobank
 # board.c is one huge translation unit (GNU Robbo's 940-line update_game, split
 # into upd_g1..g5): cap SDCC register allocation so it compiles in ~1min.

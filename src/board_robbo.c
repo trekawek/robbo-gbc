@@ -144,46 +144,17 @@ move_robbo(int x, int y) __banked
     case CAPSULE:
 	if (robbo.exitopened) {
 	    play_sound(SFX_CAPSULE, SND_NORM);
-	    /*
-	     * Check for pack completion 
-	     */
+	    /* Signal the advance only; the glue loop (HOME) does the actual
+	       level_init() reload.  level_init() -> load_level_data() switches the
+	       ROM bank to read the level data, which CORRUPTS this banked module
+	       if run from here (move_robbo's own bank gets unmapped on return) -
+	       that was the capsule-completion hang (e.g. finishing level 12). */
 	    if (level_packs[selected_pack].level_selected >=
-		level_packs[selected_pack].last_level) {
+		level_packs[selected_pack].last_level)
 		game_mode = END_SCREEN;
-		return;
-	    } else {
+	    else
 		level_packs[selected_pack].level_selected++;
-		if (level_packs[selected_pack].level_selected >
-		    level_packs[selected_pack].level_reached) {
-		    level_packs[selected_pack].level_reached =
-			level_packs[selected_pack].level_selected;
-		    /*
-		     * Save rcfile now if requested -- recommended for
-		     * battery operated or unstable devices 
-		     */
-		    if (rcfile.save_frequency == RCFILE_SAVE_ON_CHANGE) {
-			save_resource_file(path_resource_file, FALSE);
-#if defined(PLATFORM_WIN32) || defined(PLATFORM_PC)
-#elif defined(PLATFORM_GP2X)
-			system("sync");
-#elif defined(PLATFORM_ZAURUS)
-#elif defined(PLATFORM_PSP)
-#endif
-		    }
-		}
-		if (level_init()) {
-		    game_mode = INTRO_SCREEN;
-		    music_stop();
-		    intro_screen.redraw |= REDRAW_INITIALISE;
-		} else {
-		    game_area.redraw |= REDRAW_EVERYTHING;
-		    /*
-		     * Initialise the fade 
-		     */
-		    show_game_area_fade(FADE_SUB_INITIALISE, 16);
-		}
-		return;
-	    }
+	    return;
 	}
     case BOX:			/* Moveable objects */
     case PUSH_BOX:

@@ -192,32 +192,39 @@ void main(void) {
                 }
             }
 
-#if !(PROF & 1)
-            update_game();     /* logic only: sets redraw flags, no VRAM writes */
-#endif
-            need_render = 1;   /* repaint dirty cells next VBlank */
-
-            /* score: robbo.screws is screws-left; a drop within the same level
-               means screws were collected (+10 each). */
-            {
-                unsigned char sc = (unsigned char)robbo.screws;
-                if (level_packs[0].level_selected == last_sel && sc < last_screws)
-                    gr_score += (unsigned long)(last_screws - sc) * 10;
-                last_screws = sc;
-            }
-
-            /* level advanced by capsule (board.c bumped level_selected and
-               reloaded board[][]) -> resync the renderer */
+            /* Capsule advanced the level: board.c (banked move_robbo) only bumped
+               level_selected - do the level_init() reload HERE, in HOME context.
+               level_init() switches ROM banks to read the level data and must NOT
+               run from the banked move_robbo (it unmaps that bank -> garbage/hang,
+               e.g. completing level 12).  Skip update_game this frame; the freshly
+               loaded level updates on the next iteration. */
             if (level_packs[0].level_selected != last_sel) {
                 last_sel = level_packs[0].level_selected;
+                level_init();
                 DISPLAY_OFF; render_gr_load(); DISPLAY_ON;
-            }
+                last_screws = (unsigned char)robbo.screws;
+                need_render = 1;
+            } else {
+#if !(PROF & 1)
+                update_game();     /* logic only: sets redraw flags, no VRAM writes */
+#endif
+                need_render = 1;   /* repaint dirty cells next VBlank */
 
-            /* death countdown -> reload current level */
-            if (restart_timeout > 0) {
-                if (--restart_timeout == 0) {
-                    start_level();
-                    last_sel = level_packs[0].level_selected;
+                /* score: robbo.screws is screws-left; a drop within the level
+                   means screws were collected (+10 each). */
+                {
+                    unsigned char sc = (unsigned char)robbo.screws;
+                    if (sc < last_screws)
+                        gr_score += (unsigned long)(last_screws - sc) * 10;
+                    last_screws = sc;
+                }
+
+                /* death countdown -> reload current level */
+                if (restart_timeout > 0) {
+                    if (--restart_timeout == 0) {
+                        start_level();
+                        last_sel = level_packs[0].level_selected;
+                    }
                 }
             }
         }

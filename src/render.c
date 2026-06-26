@@ -59,6 +59,11 @@ static unsigned char cell_glyph(unsigned char t, unsigned char st, unsigned char
     switch (t) {
     case LITTLE_BOOM: case BIG_BOOM:  return (unsigned char)(0x61 + (st > 5 ? 5 : st));
     case TELEPORTING:                 return (unsigned char)(0x69 + (st > 4 ? 4 : st));
+    /* Exit capsule: static (0x14) while closed; once the exit opens the board
+       toggles its state every DELAY_CAPSULE, so it blinks between 0x14 and 0x16
+       - the same glyph in the inverse palette (LOOK 0x14->0x1A, 0x16->0x9A),
+       the authentic Atari open-exit flash. */
+    case CAPSULE:                     return (unsigned char)((st & 1) ? 0x16 : 0x14);
     case GUN:                         return GUN_DIR[dir & 3];
     case BLASTER:                     return BLAST_DIR[dir & 3];
     /* magnet glyph: it scans in its 'direction' and pulls Robbo the opposite way
