@@ -249,7 +249,7 @@ unsigned char warp_gr(void) __banked {
     for (y = 0; y < 18; y++) for (x = 0; x < 20; x++) mw(x, y, 0x40);
     mw_str(6, 3, "WARP TO");
     mw_str(7, 5, "LEVEL");
-    mw_str(3, 13, "UP/DN  PICK");
+    mw_str(3, 13, "ARROWS PICK");
     mw_str(3, 15, "A GO  B BACK");
     WX_REG = 7; WY_REG = 0;
     waitpadup();
