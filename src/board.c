@@ -548,16 +548,16 @@ move_object(int x, int y, struct Coords coords)
     board[x1][y1].rotable = board[x][y].rotable;
     board[x1][y1].randomrotated = board[x][y].randomrotated;
     /*
-     * NOTE: teleportnumber is not being moved 
+     * NOTE: teleportnumber is not being moved
      */
     /*
-     * NOTE: teleportnumber2 is not being moved 
+     * NOTE: teleportnumber2 is not being moved
      */
     board[x1][y1].id_questionmark = board[x][y].id_questionmark;
     board[x1][y1].direction2 = board[x][y].direction2;
     board[x1][y1].movable = board[x][y].movable;
     /*
-     * NOTE: returnlaser is not being moved 
+     * NOTE: returnlaser is not being moved
      */
     board[x1][y1].shooting = board[x][y].shooting;
     board[x1][y1].processed = board[x][y].processed;

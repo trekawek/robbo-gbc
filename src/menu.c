@@ -193,7 +193,12 @@ void mw(unsigned char x, unsigned char y, unsigned char tile) __banked {
     VBK_REG = 1; { unsigned char p = MENU_PAL; set_win_tiles(x, y, 1, 1, &p); } VBK_REG = 0;
 }
 void mw_str(unsigned char x, unsigned char y, const char *s) __banked {
-    while (*s) { unsigned char t = 128 + ((*s - 0x20) & 0x3F); mw(x++, y, t); s++; }
+    /* I.FNT at tile 128 has no punctuation glyphs (only the SHYPHEN/etc. tiles
+       do), so map '-' to its dedicated tile like glyph() does for bg_str. */
+    while (*s) {
+        unsigned char t = (*s == '-') ? SHYPHEN : 128 + ((*s - 0x20) & 0x3F);
+        mw(x++, y, t); s++;
+    }
 }
 void mw_tdig(unsigned char x, unsigned char y, unsigned char n) __banked {
     mw(x, y, 128 + 11 + n); mw(x, y + 1, 128 + 1 + n);
@@ -249,7 +254,7 @@ unsigned char warp_gr(void) __banked {
     for (y = 0; y < 18; y++) for (x = 0; x < 20; x++) mw(x, y, 0x40);
     mw_str(6, 3, "WARP TO");
     mw_str(7, 5, "LEVEL");
-    mw_str(3, 13, "ARROWS PICK");
+    mw_str(3, 13, "D-PAD PICK");
     mw_str(3, 15, "A GO  B BACK");
     WX_REG = 7; WY_REG = 0;
     waitpadup();

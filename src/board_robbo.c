@@ -241,7 +241,7 @@ shoot_robbo(int x, int y) __banked
     switch (board[x_tmp][y_tmp].destroyable) {
     case 1:			/* objects can be destroyed */
 	SET_BLOWED(x_tmp, y_tmp, 1);
-	play_sound(SFX_SHOOT, SND_QUIET);
+	play_sound(SFX_SHOOT, SND_NORM);	/* Robbo is on-screen; QUIET is now dropped */
 
 	if (board[x_tmp][y_tmp].type != BOMB) {
 	    // printf("%d\n", board[x_tmp][y_tmp].type);

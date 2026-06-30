@@ -141,25 +141,27 @@ int load_level_data(int level_number)
             board[rx][ry].state = v0;
             board[rx][ry].direction2 = v1;
             board[rx][ry].solidlaser = v2;
-            board[rx][ry].movable = v3;
-            board[rx][ry].rotable = v4;
-            board[rx][ry].randomrotated = v5;
+            /* SDCC mis-compiles `bitfield = int_var` here (the read-modify-write
+               on board[rx][ry]'s flag byte silently no-ops), so movable/rotable/
+               randomrotated never got set - rotating & moving guns stayed inert.
+               Assigning a CONSTANT 1 (as create_object does) works, so set the bit
+               conditionally.  The flags are already 0 from create_object. */
+            if (v3) board[rx][ry].movable = 1;
+            if (v4) board[rx][ry].rotable = 1;
+            if (v5) board[rx][ry].randomrotated = 1;
             if (board[rx][ry].movable == 1)
                 board[rx][ry].state += 4;
             break;
         case MAGNET:
             board[rx][ry].state = v0;
-            if (valcount > 4)
-                board[rx][ry].rotable = v1;
-            else
-                board[rx][ry].rotable = 0;
+            if (valcount > 4 && v1) board[rx][ry].rotable = 1;   /* see GUN note */
             /* fall through (as upstream) */
         case BARRIER:
             board[rx][ry].direction = v0;
             break;
         case BIRD:
             board[rx][ry].direction2 = v1;
-            board[rx][ry].shooting = v2;
+            if (v2) board[rx][ry].shooting = 1;                  /* see GUN note */
             /* fall through (as upstream) */
         case BEAR_B:
         case BEAR:

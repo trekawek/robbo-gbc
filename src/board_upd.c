@@ -163,6 +163,7 @@ int upd_g1(int x, int y) __banked
 int upd_g2(int x, int y) __banked
 {
     int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
+    int blo, bhi, bsolid;
     struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
     (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
     (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
@@ -170,6 +171,36 @@ int upd_g2(int x, int y) __banked
     set_coords(&coords, x, y);
     switch (board[x][y].type) {
 		    case BARRIER:
+			/* GBC perf: a SOLID barrier run (wall-to-wall, no gaps)
+			   renders identically whether or not the wave "shifts" it -
+			   cell_glyph draws BARRIER state-independently and the cells
+			   don't actually move - so the original move_object/
+			   negate_state just re-uploads ~14 UNCHANGED tiles to VRAM
+			   every pulse (the bulk of these levels' render cost).
+			   Detect a solid run and skip the wave: re-arm the pulse
+			   delay and kill robbo only if he's somehow on it.  GAPPED
+			   fields (where the moving gap IS visible) fall through to
+			   the full wave below. */
+			blo = x; bhi = x;
+			while (blo > 0 && board[blo - 1][y].type != WALL)
+			    blo--;
+			while (bhi < level.w - 1 && board[bhi + 1][y].type != WALL)
+			    bhi++;
+			bsolid = 1;
+			for (i = blo; i <= bhi; i++)
+			    if (board[i][y].type != BARRIER) {
+				bsolid = 0;
+				break;
+			    }
+			if (bsolid) {
+			    if (robbo.y == y && robbo.x >= blo && robbo.x <= bhi) {
+				kill_robbo();
+				return 1;
+			    }
+			    for (i = blo; i <= bhi; i++)
+				SET_MOVED(i, y, DELAY_BARRIER);  /* re-arm; no redraw */
+			    break;
+			}
 			flag = 0;
 			x_tmp = x;
 

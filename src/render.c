@@ -25,6 +25,7 @@ BANKREF_EXTERN(gr_atari_pal)
 static unsigned char slot_owner[16];
 static int scx_abs, scy_abs;
 static int max_scx, max_scy;
+static void set_sound_viewport(void);
 
 /* gnu-robbo type -> ATASCII object byte (rendered via LOOK).  WALL handled
    specially (glyph 0 = the per-level wall char).  ROBBO drawn as an overlay. */
@@ -224,6 +225,7 @@ void render_gr_load(void) {
     max_scy = MAX_SCY_(level.h); if (max_scy < 0) max_scy = 0;
     scx_abs = clampi((int)robbo.x * 16 + 8 - 80, 0, max_scx);
     scy_abs = clampi((int)robbo.y * 16 + 8 - 64, 0, max_scy);
+    set_sound_viewport();
     ensure_visible();
     SCX_REG = (unsigned char)scx_abs;
     SCY_REG = (unsigned char)(scy_abs & 0xFF);
@@ -251,11 +253,24 @@ static int ease(int cur, int tgt) {
     return tgt;
 }
 
+/* Mirror the GBC camera window (in cells) into board.c's `viewport`, so
+   in_viewport() - which the engine uses to gate world-event sounds (gun/bird/
+   bomb/kill) to NORM vs QUIET - reflects what is ACTUALLY on screen.  The
+   whole-board viewport set in level_init() made every off-screen shot audible
+   (the "constant cracking"); play_sound() now drops the QUIET (off-screen) ones. */
+static void set_sound_viewport(void) {
+    viewport.x = scx_abs >> 4;
+    viewport.y = scy_abs >> 4;
+    viewport.w = ((scx_abs + VIEW_W - 1) >> 4) - viewport.x;
+    viewport.h = ((scy_abs + PLAYH - 1) >> 4) - viewport.y;
+}
+
 void render_gr_camera(void) {
     int tx = clampi((int)robbo.x * 16 + 8 - 80, 0, max_scx);
     int ty = clampi((int)robbo.y * 16 + 8 - 64, 0, max_scy);
     scx_abs = ease(scx_abs, tx);
     scy_abs = ease(scy_abs, ty);
+    set_sound_viewport();
     ensure_visible();
     SCX_REG = (unsigned char)scx_abs;
     SCY_REG = (unsigned char)(scy_abs & 0xFF);

@@ -55,7 +55,12 @@ static const unsigned char SFX2SND[16] = {
     SND_CAPSULE,  /* 15 SFX_EXIT_OPEN */
 };
 void play_sound(int event, int vol) {
-    (void)vol;   /* engine has its own per-effect priority/mixing */
+    /* The engine emits world-event sounds (gun/bird/bomb/kill/box) as SND_NORM
+       when in_viewport() and SND_QUIET when off-screen.  in_viewport now tracks
+       the real GBC camera window (render.c set_sound_viewport), so drop the
+       off-screen ones - otherwise distant guns/birds fire a constant, sourceless
+       crackle.  Robbo's own actions always pass SND_NORM (he's always on screen). */
+    if (vol == SND_QUIET) return;
     if (event > 0 && event < 16 && SFX2SND[event] != 0xFF)
         snd_play(SFX2SND[event]);
 }

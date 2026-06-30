@@ -53,7 +53,9 @@ while i < len(text):
 # 53 is an inserted level and 58 is appended (identified by matching wall layouts
 # against the Atari level data).  Drop them so the set matches the Atari 56 and
 # the per-level Atari palettes (gr_atari_pal) align 1:1.  Then renumber 1..56.
-SKIP = {53, 58}
+# The Atari pack (convert_atari_levels.py) already has exactly 56 levels, so skip
+# nothing there; only the raw gnu-robbo file (58 levels) needs its 2 extras dropped.
+SKIP = {53, 58} if last_level == 58 else set()
 kept = [n for n in sorted(levels) if n not in SKIP]
 levels = {i + 1: levels[n] for i, n in enumerate(kept)}
 last_level = len(kept)

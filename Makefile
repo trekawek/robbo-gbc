@@ -8,7 +8,9 @@ BUILD  := build
 ROM    := $(BUILD)/robbo.gbc
 
 # Assets converted at build time: the Atari original supplies the font, sound
-# tables and instruction text; the levels come from GNU Robbo's original.dat.
+# tables, instruction text AND the authentic level designs (d2/C*.txt, converted
+# to the engine's level format by tools/convert_atari_levels.py).  GNU Robbo's
+# original.dat is used only for the engine's game logic + per-level colours.
 ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
 GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
 
@@ -23,8 +25,9 @@ GFX    := $(GENDIR)/gfx_tiles.c
 GFXH   := $(GENDIR)/gfx_tiles.h
 SOUNDH := $(GENDIR)/sounds.h
 INSTRH := $(GENDIR)/instr.h
-# generated level data (from GNU Robbo original.dat): HOME index + banked grids
-LEVELS := $(SRCDIR)/levels_idx.c $(SRCDIR)/levels_d0.c $(SRCDIR)/levels_d1.c $(SRCDIR)/levels_d2.c
+# generated level data (authentic Atari levels): HOME index + banked grids
+LEVELS    := $(SRCDIR)/levels_idx.c $(SRCDIR)/levels_d0.c $(SRCDIR)/levels_d1.c $(SRCDIR)/levels_d2.c
+ATARIDAT  := $(GENDIR)/atari_levels.dat
 
 HAND := $(SRCDIR)/globals.c $(SRCDIR)/glue.c $(SRCDIR)/render.c $(SRCDIR)/loader.c \
         $(SRCDIR)/hud.c $(SRCDIR)/atari_pal.c $(SRCDIR)/menu.c \
@@ -55,8 +58,12 @@ $(SOUNDH): tools/convert_sound.py
 $(INSTRH): tools/extract_instr.py
 	$(PY) tools/extract_instr.py "$(ORIG)" $(GENDIR)
 
-$(LEVELS) $(SRCDIR)/levels_data.h: tools/convert_gnu_levels.py
-	$(PY) tools/convert_gnu_levels.py "$(GNUROBBO)/data/levels/original.dat" $(SRCDIR)
+# authentic Atari level designs -> engine .dat (gnu file supplies per-level colour)
+$(ATARIDAT): tools/convert_atari_levels.py
+	$(PY) tools/convert_atari_levels.py "$(ORIG)/d2" "$(GNUROBBO)/data/levels/original.dat" $(ATARIDAT) 56
+
+$(LEVELS) $(SRCDIR)/levels_data.h: tools/convert_gnu_levels.py $(ATARIDAT)
+	$(PY) tools/convert_gnu_levels.py "$(ATARIDAT)" $(SRCDIR)
 
 # --- compile ---
 # board.c / board_upd.c are large: capped register allocation
