@@ -6,7 +6,7 @@
 #ifndef BOARD_INTERNAL_H
 #define BOARD_INTERNAL_H
 
-#define MAX_TELEPORT_IDS 15   /* used by move_robbo (now in the banked module) */
+#define MAX_TELEPORT_IDS 15   /* engine cap on teleports per group (see find_next_teleport) */
 
 /* GBC perf: a cell is "active" (must be visited by update_game) iff it has an
    object type with behaviour, OR a pending move/blow delay.  We mark such cells
@@ -31,7 +31,7 @@ void shoot_object(int x, int y, int direction);
 void blow_bomb(int x, int y) __banked;
 void blow_bomb2(int x, int y) __banked;
 void check_object_if_blowed(int x, int y);
-int  find_teleport(struct Coords *coords, int teleportnumber, int teleportnumber2) __banked;
+int  find_next_teleport(struct Coords *coords, int teleportnumber, int after) __banked;
 int  is_robbo_killed(void);
 void kill_robbo(void);
 

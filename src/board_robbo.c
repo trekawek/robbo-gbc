@@ -3,7 +3,7 @@
    largest functions in the engine).  They run only on player input (a few times
    per second), so the __banked trampoline cost is negligible.  They call HOME
    helpers (create_object/clear_field/can_move/move_object/play_sound) and the
-   __banked find_teleport - all handled transparently by the trampoline. */
+   __banked find_next_teleport - all handled transparently by the trampoline. */
 #pragma bank 255
 #include <gb/gb.h>
 #include "game.h"
@@ -101,42 +101,47 @@ move_robbo(int x, int y) __banked
 	    break;
 	play_sound(SFX_TELEPORT, SND_NORM);	/* teleport sound */
 	i = 0;
-	j = board[x_tmp][y_tmp].teleportnumber2;
+	{
+	    /* Cycle through the group's teleports in teleportnumber2 order,
+	       starting just after this one and wrapping back to it, picking the
+	       first whose exit direction Robbo can step out of.  find_next_teleport
+	       does one board scan per candidate (the old loop probed every unused
+	       id up to MAX_TELEPORT_IDS, rescanning the whole board ~15x for the
+	       higher-id teleport - the right one of a pair - and stalled there). */
+	    int gtele = board[x_tmp][y_tmp].teleportnumber;
+	    int start = board[x_tmp][y_tmp].teleportnumber2;
+	    int cur = start;
 
-	while (i == 0) {
-	    j++;
+	    do {
+		j = find_next_teleport(&coords, gtele, cur);
+		if (j < 0)
+		    break;		/* no teleport of this group (shouldn't happen) */
+		cur = j;
 
-	    if (((find_teleport
-		  (&coords, board[x_tmp][y_tmp].teleportnumber, j)) == 0)
-		&& j != board[x_tmp][y_tmp].teleportnumber2) {	/* teleport not found */
-		if (j > MAX_TELEPORT_IDS)
-		    j = -1;
-		continue;
-	    }
-
-	    dir_tmp = (robbo.direction / 2);	/* neurocyp * new teleport logic now it should be the same as original robbo logic */
-	    for (k = 0; k < 4; k++) {	/* first time, the direction, where robbo tries to go is checked */
-		if (can_move(coords, dir_tmp)) {
-		    create_object(robbo.x, robbo.y, TELEPORTING);	/* Create src teleporting animation */
-		    update_coords(&coords, dir_tmp);
-		    x_tmp = coords.x;
-		    y_tmp = coords.y;
-		    robbo.direction = (dir_tmp * 2);
-		    create_object(x_tmp, y_tmp, TELEPORTING);	/* Create dest teleporting animation */
-		    robbo.moved = DELAY_TELEPORTING * 5;	/* 5 frames of teleporting animation */
-		    viewport.cycles_to_dest = robbo.moved;
-		    robbo.teleporting = TRUE;
-		    i = 1;
-		    break;
+		dir_tmp = (robbo.direction / 2);	/* neurocyp * same as original robbo logic */
+		for (k = 0; k < 4; k++) {	/* try Robbo's heading first, then rotate */
+		    if (can_move(coords, dir_tmp)) {
+			create_object(robbo.x, robbo.y, TELEPORTING);	/* src teleport animation */
+			update_coords(&coords, dir_tmp);
+			x_tmp = coords.x;
+			y_tmp = coords.y;
+			robbo.direction = (dir_tmp * 2);
+			create_object(x_tmp, y_tmp, TELEPORTING);	/* dest teleport animation */
+			robbo.moved = DELAY_TELEPORTING * 5;	/* 5 frames of teleporting animation */
+			viewport.cycles_to_dest = robbo.moved;
+			robbo.teleporting = TRUE;
+			i = 1;
+			break;
+		    }
+		    dir_tmp = dir_tmp ^ (((k + 1) % 2) + 2);
 		}
-		dir_tmp = dir_tmp ^ (((k + 1) % 2) + 2);
-	    }
-	    if (j == board[x_tmp][y_tmp].teleportnumber2 && i == 0) {	/* protect from freezing the game */
-		create_object(robbo.x, robbo.y, TELEPORTING);	/* Create src/dest teleporting animation */
+	    } while (i == 0 && cur != start);
+
+	    if (i == 0) {		/* couldn't exit anywhere -> teleport in place */
+		create_object(robbo.x, robbo.y, TELEPORTING);	/* src/dest teleport animation */
 		robbo.moved = DELAY_TELEPORTING * 5;	/* 5 frames of teleporting animation */
 		viewport.cycles_to_dest = robbo.moved;
 		robbo.teleporting = TRUE;
-		i = 1;
 		return;
 	    }
 	}

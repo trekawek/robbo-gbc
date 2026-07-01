@@ -1090,27 +1090,37 @@ blow_bomb2(int x, int y) __banked
  */
 
 
-/* moved from board.c (HOME overflow): teleport lookup, banked */
+/* Find, in a single board scan, the teleport of group `teleportnumber` whose
+   teleportnumber2 is the smallest value strictly greater than `after`; if there
+   is none, wrap to the smallest teleportnumber2 in the group.  Returns the
+   chosen teleportnumber2 (>=0) and sets *coords, or -1 if the group is empty.
+
+   This replaces move_robbo's old per-id probing, which called find_teleport for
+   every id in (after, MAX_TELEPORT_IDS] plus the -1..after wrap - up to ~15 full
+   board rescans when entering a higher-id teleport (e.g. the right one of a
+   left/right pair, id 1, searching ids 2..15 then 0).  On the software-multiply
+   sm83 that whole-board re-scanning was a visible pre-teleport stall. */
 int
-find_teleport(struct Coords *coords, int teleportnumber,
-	      int teleportnumber2) __banked
+find_next_teleport(struct Coords *coords, int teleportnumber, int after) __banked
 {
-    int             i,
-                    j;
+    int i, j, t2;
+    int best_gt = 0x7FFF, best_any = 0x7FFF;
+    int gx = -1, gy = -1, ax = -1, ay = -1;
 
     for (i = 0; i < level.w; i++)
 	for (j = 0; j < level.h; j++) {
-	    if (board[i][j].type == TELEPORT) {
-		if (teleportnumber == board[i][j].teleportnumber) {	/* found the same kind */
-		    if (teleportnumber2 == board[i][j].teleportnumber2) {	/* next teleport */
-			set_coords(coords, i, j);
-			return 1;	/* found exact_teleport */
-		    }
-		}
-	    }
+	    if (board[i][j].type != TELEPORT)
+		continue;
+	    if (board[i][j].teleportnumber != teleportnumber)
+		continue;
+	    t2 = board[i][j].teleportnumber2;
+	    if (t2 < best_any) { best_any = t2; ax = i; ay = j; }
+	    if (t2 > after && t2 < best_gt) { best_gt = t2; gx = i; gy = j; }
 	}
 
-    return 0;			/* teleport with this number has not been found...  */
+    if (gx >= 0) { set_coords(coords, gx, gy); return best_gt; }
+    if (ax >= 0) { set_coords(coords, ax, ay); return best_any; }
+    return -1;			/* no teleport of this group on the board */
 }
 
 /* moved from board.c (HOME overflow): questionmark init + random id, banked */
