@@ -33,6 +33,15 @@ make clean      # always clean after editing a .h — header deps aren't fully t
 board.c / board_upd.c are huge single TUs and compile with capped register allocation
 (`--max-allocs-per-node 3000`); a full build is ~1–2 min.
 
+Title logo: `tools/sim_logo.py` reproduces TITLE.ASM's `BIGR` routine bit-for-bit to
+extract the authentic 'RoDDo' bitmap (5 glyphs from I.FNT `$3E8`, 1bpp→2bpp doubling
+ANDed with the diagonal MASK bevel). `convert_font.py` imports it, scales 2×3 into the
+`logo_tiles` (14×3 tiles) and emits `logo_rainbow[15][4]` — one GBC palette per Atari
+hue. The banked title can't `SWITCH_ROM` to itself, so `render_gr_logo()` (HOME) copies
+the rainbow table into the WRAM `gr_logo_rainbow[]`; `title_gr_show()` cycles it for the
+rainbow animation. The Atari rainbow is *temporal* hue-cycling of COLPF0/1/2 (lum 2/4/8),
+not a spatial gradient.
+
 ## Headless verification (two harnesses)
 
 1. **PyBoy quick screenshot** (`tools/shot.py`): boots the ROM and saves a PNG after a
@@ -76,7 +85,7 @@ src/board.h        packed 14-byte cell struct + scaled object delays + tile IDs
 src/glue.c         GBC shim: main loop, input, tick pacing, RNG, sound bridge, lifecycle
 src/render.c       board→tiles+palettes, scrolling viewport, row streaming, sound viewport
 src/loader.c       level load → board setup + per-level palette + the [additional] params
-src/menu.c         title + pause/warp menu (banked)
+src/menu.c         title (authentic 'RoDDo' logo + rainbow) + pause/warp menu (banked)
 src/atari_pal.c    56 authentic per-level palettes (banked)
 src/levels_*.c     generated level data (HOME index + banked grids) — DO NOT hand-edit
 tools/             asset + level converters; shot.py screenshot helper
@@ -94,6 +103,12 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   `GR_DELAY_DIV=2` via `SCALE()` (gnu tuned for 25 Hz; GBC reaches ~8 cycles/s).
 - Rendering happens only inside VBlank in the main loop; logic (`update_game`) sets redraw
   flags, then `show_game_area` flushes dirtied cells. Don't move VRAM writes out of VBlank.
+- Wall shape is per-level: `render_gr_load` picks `wall_chars` group `(level-1)/4`, so the
+  wall style changes every 4 levels — the authentic Atari rule (`ENTCV` "murki shp" in
+  R1.ASM: `group = (CNUM*4 & 0xF0)>>4`). `convert_font.py`'s 16 wall groups line up 1:1 with
+  M.FNT's metatiles, so the index maps straight through. (Was hardcoded to group 0.)
+- Robbo faces **down** at level start (`init_robbo` sets `direction = 2`) — matches the
+  Atari (`LM = %1101`). Direction encoding: 0=right, 2=down, 4=left, 6=up.
 
 ## ⚠️ Gotchas learned the hard way
 
@@ -105,8 +120,31 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
 - **Teleport groups are 1-based.** gnu treats `teleportnumber==0` as "no teleport", so the
   converter maps Atari digit `b` → group `b-0x30+1`. Off-by-one here = teleports that make
   Robbo vanish (he enters and never exits).
+- **Teleport destination search is one board scan (`find_next_teleport`), not per-id probing.**
+  `teleportnumber2` ids are assigned 0-based in scan order, so the *second* teleport of a
+  same-row pair gets id 1. gnu's original loop probed every id in `(id, MAX_TELEPORT_IDS]`
+  then wrapped, calling the old `find_teleport` (a full board scan) ~15× when entering a
+  higher-id teleport — a visible pre-teleport stall on the software-multiply sm83 (the
+  "right teleport lags, left is instant" bug). `find_next_teleport` finds the next id in
+  cyclic order in a single scan; the candidate-trial order (and destination) is identical.
 - **Atari levels are NOT mirror images of gnu levels** — different glyph alphabets. The
   authentic geometry comes from `convert_atari_levels.py`, validated 56/56 on screw counts.
+- **`gr_atari_pal` (src/atari_pal.c) is a hand-committed table and some entries are
+  oversaturated vs the real (atari800) colours** — e.g. Atari `COLPF2=0x7C` should render as
+  light lavender-white (screw/Robbo highlight), not saturated blue. Ground-truth a level by
+  sampling an atari800 screenshot (Xvfb + ffmpeg x11grab, then read the distinct play-area
+  colours) and convert RGB→BGR555 `(r>>3)|((g>>3)<<5)|((b>>3)<<10)`. Levels 5 & 7 were
+  corrected this way. Verified index mapping: `pal0 = [COLB, COLPF0, COLPF1, COLPF2]`,
+  `pal1 = [COLB, COLPF0, COLPF1, COLPF3]` (idx0 = floor/COLB, NOT COLBK) — from the C*.txt
+  `metadata:` bytes `[7,2,3,4]` / `[7,2,3,5]`. A full regen just needs the byte→RGB table
+  (extract via an atari800 colour chart) applied to every level's metadata colours.
+- **Bear initial facing must come from the Atari `STW*` routines, not the bird pattern.**
+  `STW_DIR` in `convert_atari_levels.py` gives each creature's starting direction. Bears
+  (ABCD left-hand `BEAR`, EFGH right-hand `BEAR_B`) face N,S,E,W / S,N,W,E; only the
+  bird bouncers IJKL use `[2,3,0,1]`. A wall-follower that starts facing the wrong way
+  hugs the wrong wall and walks out of its room (the level-3 bear "escapes the island"
+  bug). The GNU `BEAR` left/right-hand logic is the *same* algorithm as the Atari's, so
+  the authentic facing is all that's needed to match.
 - **DZ1 guns = bullets (shottype 0), DZ2 = laser (shottype 1).** Getting shottype wrong
   makes projectiles render as the wrong object (e.g. laser beam looking like the cannon).
 - After editing any header, `make clean` — header dependencies aren't fully tracked and you
