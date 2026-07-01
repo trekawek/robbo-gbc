@@ -43,7 +43,9 @@ class Cell:
     def __init__(self, ch, add=None): self.ch = ch; self.add = add
 
 def byte_to_cell(b):
-    if b == 0xA0 or b == 0x13: return Cell('O')        # wall / inner-cave wall
+    if b == 0xA0: return Cell('O')                     # solid (visible) wall
+    if b == 0x13: return Cell('-')                     # black inner-cave fill -> BLACK_WALL
+                                                       # (rendered as solid COLBK, not a wall)
     if b == 0x20: return Cell('.')                     # empty
     if b == 0x2A: return Cell('R')                     # robbo start
     if b == 0x21: return Cell("'")                     # ammo

@@ -13,7 +13,9 @@ extern const unsigned char LOOK[128];
    (palette 1, used for walls).  Indexed by level-1.  See gr_atari_pal.c. */
 #include "levels_data.h"
 extern const unsigned int gr_atari_pal[GR_NLEVELS][8];
+extern const unsigned int gr_atari_colbk[GR_NLEVELS];   /* black inner-cave fill (┼) */
 BANKREF_EXTERN(gr_atari_pal)
+#define PAL_BLACKFILL 2    /* BG palette slot: solid COLBK, for BLACK_WALL cells */
 
 #define VIEW_W 160
 #define PLAYH  128                         /* visible playfield height (px) */
@@ -111,7 +113,10 @@ static void cell_tiles(unsigned char cx, unsigned char cy, unsigned char *tt, un
     }
     if (t == WALL) {
         base = 0;                                    /* wall glyph 0 (wall_chars) */
-        pal = 1;                                     /* inverse palette = blue (Atari) */
+        /* The Atari `┼` black inner-cave fill loads as WALL state 3 (BLACK_WALL);
+           render it as solid COLBK via PAL_BLACKFILL (all 4 entries = COLBK).
+           Every other wall uses the inverse (blue/brick) palette. */
+        pal = (board[cx][cy].state == 3) ? PAL_BLACKFILL : 1;
     } else {
         /* Atari colour model: a cell uses the level's normal (0) or inverse (1)
            palette purely by the glyph's inverse bit - no semantic per-type tint. */
@@ -221,6 +226,11 @@ void render_gr_load(void) {
     SWITCH_ROM(BANK(gr_atari_pal));        /* table lives in a switchable bank */
     for (i = 0; i < 8; i++) pal[i] = gr_atari_pal[idx][i];
     set_bkg_palette(0, 2, (const palette_color_t *)pal);   /* palettes 0 + 1 */
+    {   /* palette PAL_BLACKFILL = all COLBK, for the ┼ black inner-cave fill */
+        unsigned int bk = gr_atari_colbk[idx], bp[4];
+        bp[0] = bp[1] = bp[2] = bp[3] = bk;
+        set_bkg_palette(PAL_BLACKFILL, 1, (const palette_color_t *)bp);
+    }
     /* HUD bar keeps its own palette 6 (black bg, white digits). */
     {
         static const unsigned int hudpal[4] = {0x0000,0x7FFF,0x167A,0x7FFF};
