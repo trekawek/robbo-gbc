@@ -13,6 +13,7 @@
 #include "levels_data.h"
 #include "sound.h"
 #include "gen/instr.h"
+#include "gen/gfx_tiles.h"
 
 void render_gr_init(void);
 void hud_gr_init(void) __banked;
@@ -32,7 +33,7 @@ void hud_gr_init(void) __banked;
 #define SBANG     239
 #define SQUEST    240
 #define BLANK     0x40        /* the all-black playfield tile */
-#define LOGO_BASE 0
+#define LOGO_X    ((20 - LOGO_TW) / 2)   /* centre the 14-tile-wide logo */
 
 #define NVIS    8
 #define BOXX    ((20 - INSTR_WIDTH) / 2)
@@ -82,12 +83,6 @@ unsigned char glyph(char c) __banked {
 void bg_str(unsigned char x, unsigned char y, const char *s) __banked {
     while (*s) { bg_put(x++, y, glyph(*s), TPAL); s++; }
 }
-void letter3(unsigned char col, unsigned char row, unsigned char base) __banked {
-    unsigned char r, c;
-    for (r = 0; r < 3; r++)
-        for (c = 0; c < 3; c++)
-            bg_put(col + c, row + r, LOGO_BASE + base + r*3 + c, LPAL);
-}
 unsigned char line_len(unsigned char li) __banked {
     unsigned char n = 0;
     if (li == 0xFF) return 0;
@@ -105,12 +100,13 @@ void click(void) __banked {
     NR41_REG = 0x00; NR42_REG = 0x51; NR43_REG = 0x30; NR44_REG = 0x80;
 }
 
+extern unsigned int gr_logo_rainbow[LOGO_RAINBOW_N][4];
+
 void title_gr_show(void) __banked {
     unsigned char x, y, d, r;
     unsigned char vis[NVIS];
-    unsigned char li_next, col, curlen, state, delay, hold, blink, ps_on;
+    unsigned char li_next, col, curlen, state, delay, hold, blink, ps_on, hue;
     const palette_color_t tpal[4] = { 0x0000, 0x294A, 0x56B5, 0x7FFF };
-    const palette_color_t lpal[4] = { 0x0000, 0x3000, 0x7C00, 0x7FE0 };
 
     snd_stop();
     DISPLAY_OFF;
@@ -123,14 +119,15 @@ void title_gr_show(void) __banked {
     load_mono(SPERIOD, PERIOD); load_mono(SBANG, BANG);
     load_mono(SQUEST, QUEST);
     set_bkg_palette(TPAL, 1, tpal);
-    set_bkg_palette(LPAL, 1, lpal);
+    hue = 0;
+    set_bkg_palette(LPAL, 1, (const palette_color_t *)gr_logo_rainbow[0]);
     for (y = 0; y < 32; y++) for (x = 0; x < 32; x++) bg_put(x, y, BLANK, TPAL);
 
-    letter3(2,  0, 0);    /* R */
-    letter3(5,  0, 9);    /* O */
-    letter3(8,  0, 18);   /* B */
-    letter3(11, 0, 18);   /* B */
-    letter3(14, 0, 9);    /* O */
+    /* authentic 'RoDDo' logo: LOGO_TW x LOGO_TH tiles (0..LOGO_NTILES-1),
+       centred horizontally, drawn in the LPAL palette that the rainbow cycles. */
+    for (r = 0; r < LOGO_TH; r++)
+        for (x = 0; x < LOGO_TW; x++)
+            bg_put(LOGO_X + x, r, (unsigned char)(r * LOGO_TW + x), LPAL);
 
     bg_str(3, 4, "1989 BY AVALON");
     bg_str(5, 5, "JANUSZ PELC");
@@ -147,6 +144,11 @@ void title_gr_show(void) __banked {
     while (1) {
         wait_vbl_done();
         blink++;
+        /* rainbow: advance the logo hue every 8 frames (~2s per full cycle) */
+        if ((blink & 7) == 0) {
+            if (++hue >= LOGO_RAINBOW_N) hue = 0;
+            set_bkg_palette(LPAL, 1, (const palette_color_t *)gr_logo_rainbow[hue]);
+        }
         if ((blink & 15) == 0) {
             ps_on ^= 1;
             if (ps_on) bg_str(4, 8, "PRESS START");

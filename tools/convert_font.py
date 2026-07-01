@@ -45,40 +45,57 @@ def mono_tile(ch):
         out.append(ch[r]); out.append(ch[r])   # both planes -> value 3
     return bytes(out)
 
-def logo_3d(ch, scale=3):
-    """8x8 1bpp char -> a scale*scale grid of 8x8 GBC tiles forming a big 3D
-       blocky letter: body = colour 2, top/left highlight = 3, bottom/right
-       shadow = 1.  Returns the tiles row-major (top row first)."""
-    n = 8 * scale
-    body = [[0]*(n+2) for _ in range(n+2)]            # 1px padding for edge tests
-    for r in range(8):
-        for c in range(8):
-            if (ch[r] >> (7 - c)) & 1:
-                for dr in range(scale):
-                    for dc in range(scale):
-                        body[1 + r*scale + dr][1 + c*scale + dc] = 1
-    col = [[0]*n for _ in range(n)]
-    for r in range(n):
-        for c in range(n):
-            if body[r+1][c+1]:
-                if not body[r][c+1] or not body[r+1][c]:      v = 3   # top/left
-                elif not body[r+2][c+1] or not body[r+1][c+2]: v = 1  # bottom/right
-                else:                                          v = 2   # body
-                col[r][c] = v
+# --- authentic Atari 'RoDDo' title logo -----------------------------------
+# tools/sim_logo.py reproduces TITLE.ASM's BIGR routine bit-for-bit, yielding a
+# 56x8 grid of 2bpp colour indices (0=bg, 1=COLPF0 dark, 2=COLPF1 mid,
+# 3=COLPF2 bright) with the 3D brick bevel carved by the diagonal MASK.  We
+# scale it 2x horizontally / 3x vertically into 14x3 = 42 GBC 8x8 tiles.
+import sim_logo
+LOGO_SX, LOGO_SY = 2, 3                                # logical-pixel -> GBC scale
+
+def logo_tiles_from_sim(orig):
+    sim_logo.ORIG = orig
+    grid, c0, c1 = sim_logo.main_grid()
+    W = c1 - c0 + 1                                    # 56 logical columns
+    pw, ph = W * LOGO_SX, 8 * LOGO_SY                  # 112 x 24 pixels
+    tw, th = pw // 8, ph // 8                          # 14 x 3 tiles
+    def at(px, py):                                    # scaled-pixel -> colour idx
+        return grid[py // LOGO_SY][c0 + px // LOGO_SX]
     tiles = []
-    for ty in range(scale):
-        for tx in range(scale):
+    for ty in range(th):
+        for tx in range(tw):
             t = bytearray()
             for r in range(8):
                 lo = hi = 0
                 for c in range(8):
-                    v = col[ty*8 + r][tx*8 + c]
+                    v = at(tx*8 + c, ty*8 + r)
                     bit = 7 - c
                     if v & 1: lo |= 1 << bit
                     if v & 2: hi |= 1 << bit
                 t.append(lo); t.append(hi)
             tiles.append(bytes(t))
-    return tiles                                      # scale*scale tiles
+    return tiles, tw, th                               # row-major tiles + dims
+
+def atari_to_bgr555(c):
+    """Atari colour byte -> GBC BGR555 (matches render.c's RGB888 path)."""
+    r, g, b = sim_logo.atari_rgb(c)
+    return (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10)
+
+def logo_rainbow():
+    """One 4-colour GBC palette per hue step, cycling all 15 Atari hues for the
+       title's rainbow animation.  The 3 logo shades keep the authentic COLPF
+       luminances (2/4/8 = dark/mid/bright bevel); the brighter bands lead the
+       hue slightly so the bevel shimmers like the Atari's independently-drifting
+       colour registers."""
+    NHUE = 15
+    out = []
+    for step in range(NHUE):
+        pal = [0x0000]                                 # index 0 = black background
+        for shade, lum in enumerate((2, 4, 8)):
+            hue = ((step + shade) % NHUE) + 1          # hues 1..15, +shade lead
+            pal.append(atari_to_bgr555((hue << 4) | lum))
+        out.append(pal)
+    return out, NHUE
 
 def emit(out, name, tiles):
     flat = b"".join(tiles)
@@ -142,8 +159,10 @@ def main():
             walls.append(char_tile(m[c]))
     hud = [mono_tile(i[c]) for c in range(96)]           # text + status icons (mode-2)
 
-    # title logo: 3x-scaled 3D letters R,O,B from I.FNT (R=0x32 O=0x2F B=0x22)
-    logo = logo_3d(i[0x32]) + logo_3d(i[0x2F]) + logo_3d(i[0x22])  # 3 letters x 9 = 27
+    # title logo: authentic 'RoDDo' bitmap reproduced from TITLE.ASM (sim_logo),
+    # scaled into 14x3 GBC tiles, plus a per-hue rainbow palette table.
+    logo, logo_tw, logo_th = logo_tiles_from_sim(orig)
+    rainbow, rainbow_n = logo_rainbow()
 
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "gfx_tiles.h"), "w") as h:
@@ -152,6 +171,10 @@ def main():
         h.write("#define FONT_NTILES 128\n")
         h.write("#define WALL_NGROUPS 16\n")
         h.write("#define ANIM_NCHARS %d\n" % len(ANIM))
+        h.write("#define LOGO_TW %d\n" % logo_tw)
+        h.write("#define LOGO_TH %d\n" % logo_th)
+        h.write("#define LOGO_NTILES %d\n" % (logo_tw * logo_th))
+        h.write("#define LOGO_RAINBOW_N %d\n" % rainbow_n)
         h.write("extern const unsigned char font_tiles[];\n")
         h.write("extern const unsigned char robbo_chars[];\n")
         h.write("extern const unsigned char wall_chars[];\n")
@@ -160,6 +183,7 @@ def main():
         h.write("extern const unsigned char anim_b[];\n")
         h.write("extern const unsigned char anim_slots[];\n")
         h.write("extern const unsigned char logo_tiles[];\n")
+        h.write("extern const unsigned int logo_rainbow[LOGO_RAINBOW_N][4];\n")
         h.write("BANKREF_EXTERN(gfx)\n")
         h.write("#define GFX_BANK BANK(gfx)   /* SWITCH_ROM(GFX_BANK) before reading the tiles */\n")
         h.write("#endif\n")
@@ -175,6 +199,10 @@ def main():
         c.write("const unsigned char anim_slots[%d] = {" % len(ANIM)
                 + ",".join("0x%02X" % v for v in ANIM) + "};\n")
         emit(c, "logo_tiles", logo)
+        c.write("const unsigned int logo_rainbow[%d][4] = {\n" % rainbow_n)
+        for pal in rainbow:
+            c.write("  {" + ",".join("0x%04X" % v for v in pal) + "},\n")
+        c.write("};\n")
         c.write("BANKREF(gfx)\n")               # bank-number symbol for GFX_BANK
     print(f"gfx: font={len(font)} robbo={len(robbo)//4}facets walls={len(walls)} hud={len(hud)} -> {outdir}/gfx_tiles.[ch]")
 

@@ -188,13 +188,24 @@ void render_gr_init(void) {
     set_bkg_data(ROBBO_BL, 2, &robbo_chars[2*64 + 32]);
 }
 
-/* Load the title logo into tiles 0..26 (over the playfield font).  Done here in
-   HOME because reading the banked logo needs a SWITCH_ROM, which the banked
-   title module can't do to itself.  Call render_gr_init() afterwards to restore
-   the font. */
+/* Load the title logo into tiles 0..LOGO_NTILES-1 (over the playfield font).
+   Done here in HOME because reading the banked logo needs a SWITCH_ROM, which
+   the banked title module can't do to itself.  Call render_gr_init() afterwards
+   to restore the font. */
+/* WRAM copy of the banked rainbow palette table so the banked title module can
+   read it without a SWITCH_ROM-to-self (the banked-fn gotcha). */
+unsigned int gr_logo_rainbow[LOGO_RAINBOW_N][4];
+
 void render_gr_logo(void) {
+    unsigned char k;
     SWITCH_ROM(GFX_BANK);
-    set_bkg_data(0, 27, logo_tiles);
+    set_bkg_data(0, LOGO_NTILES, logo_tiles);
+    for (k = 0; k < LOGO_RAINBOW_N; k++) {
+        gr_logo_rainbow[k][0] = logo_rainbow[k][0];
+        gr_logo_rainbow[k][1] = logo_rainbow[k][1];
+        gr_logo_rainbow[k][2] = logo_rainbow[k][2];
+        gr_logo_rainbow[k][3] = logo_rainbow[k][3];
+    }
 }
 
 void render_gr_load(void) {

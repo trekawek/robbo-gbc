@@ -49,7 +49,7 @@ $(BUILD):
 	@mkdir -p $(BUILD)
 
 # --- asset generation ---
-$(GFX) $(GFXH): tools/convert_font.py
+$(GFX) $(GFXH): tools/convert_font.py tools/sim_logo.py
 	$(PY) tools/convert_font.py "$(ORIG)" $(GENDIR)
 
 $(SOUNDH): tools/convert_sound.py
