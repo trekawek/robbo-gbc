@@ -980,7 +980,7 @@ init_robbo(void)
     robbo.y = 0;
     robbo.alive = 1;
     robbo.state = 0;
-    robbo.direction = 0;
+    robbo.direction = 2;    /* face DOWN at level start (matches Atari: LM=%1101) */
     robbo.screws = 0;
     robbo.keys = 0;
     robbo.bullets = 0;
