@@ -227,7 +227,9 @@ void render_gr_load(void) {
         set_bkg_palette(6, 1, (const palette_color_t *)hudpal);
     }
     SWITCH_ROM(GFX_BANK);
-    g = (unsigned char)(selected_pack & 0); /* fixed wall group 0 for now */
+    /* Atari picks the wall shape by level: group = (CNUM*4 & 0xF0)>>4 = (level-1)/4,
+       so the wall style changes every 4 levels (ENTCV "murki shp" in R1.ASM). */
+    g = (unsigned char)(idx >> 2);
     if (g >= WALL_NGROUPS) g = 0;
     set_bkg_data(0,    2, &wall_chars[g*64]);
     set_bkg_data(0x20, 2, &wall_chars[g*64 + 32]);
