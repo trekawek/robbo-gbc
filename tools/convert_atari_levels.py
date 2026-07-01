@@ -30,8 +30,13 @@ def to_byte(ch): return G2B[ch] if ch in G2B else (ord(ch) & 0xFF)
 
 # old-engine dir (0=up,1=down,2=left,3=right) -> gnu dir (0=E,1=S,2=W,3=N)
 OLD2GNU = {0: 3, 1: 1, 2: 2, 3: 0}
-# STW monster initial direction (old) per byte-0x41 (objects.c STW[][0])
-STW_DIR = [2,3,0,1, 2,3,0,1, 2,3,0,1]
+# STW creature initial facing (old dir), derived from the Atari STWA..STWL
+# routines (d1/R2.ASM): each tries (turn-toward-wall, forward, rotate) in order,
+# so the 2nd probe is "forward" = the facing.  Left-hand bears ABCD face N,S,E,W;
+# right-hand bears EFGH face S,N,W,E; bird bouncers IJKL travel W,E,up,down.
+# The bears must NOT reuse the bird pattern or a left-hand follower starts facing
+# the wrong way and wall-hugs out of its room (the level-3 bear bug).
+STW_DIR = [0,1,3,2,  1,0,2,3,  2,3,0,1]
 
 class Cell:
     __slots__ = ("ch", "add")  # gnu glyph; add = list of param ints (or None)
