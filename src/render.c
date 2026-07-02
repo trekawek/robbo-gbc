@@ -213,6 +213,13 @@ void render_gr_logo(void) {
     }
 }
 
+/* Load the ending-animation tiles into 0..ENDING_NTILES-1 (over the playfield
+   font), for the banked ending module.  render_gr_init() restores the font. */
+void render_gr_ending(void) {
+    SWITCH_ROM(GFX_BANK);
+    set_bkg_data(0, ENDING_NTILES, ending_tiles);
+}
+
 void render_gr_load(void) {
     unsigned int pal[8];
     unsigned char i, g;

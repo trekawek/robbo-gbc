@@ -164,6 +164,17 @@ def main():
     logo, logo_tw, logo_th = logo_tiles_from_sim(orig)
     rainbow, rainbow_n = logo_rainbow()
 
+    # ending-animation metatiles from S.FNT (TITLE.ASM CONGR scene): star, ship
+    # halves, Robbo walk/stand/wave frames, ground.  metatile N -> S.FNT chars
+    # base,base+1,base+32,base+33 where base = N*2 (N<16) else 64+(N-16)*2 (PUT_).
+    # Each metatile -> 4 GBC tiles (TL,TR,BL,BR).  Order defines the END_* offsets.
+    ENDING_MT = [0, 2, 3, 5, 6, 16, 18, 19, 21]   # star shipL shipR walk1 stand ground wave1 wave2 walk2
+    ending = []
+    for N in ENDING_MT:
+        b = N * 2 if N < 16 else 64 + (N - 16) * 2
+        for cc in (b, b + 1, b + 32, b + 33):
+            ending.append(char_tile(s[cc]))
+
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "gfx_tiles.h"), "w") as h:
         h.write("#ifndef GFX_TILES_H\n#define GFX_TILES_H\n")
@@ -175,6 +186,10 @@ def main():
         h.write("#define LOGO_TH %d\n" % logo_th)
         h.write("#define LOGO_NTILES %d\n" % (logo_tw * logo_th))
         h.write("#define LOGO_RAINBOW_N %d\n" % rainbow_n)
+        h.write("#define ENDING_NTILES %d\n" % len(ending))
+        # each metatile = 4 tiles (TL,TR,BL,BR); offsets into ending_tiles
+        for k, nm in enumerate(("STAR","SHIPL","SHIPR","WALK1","STAND","GROUND","WAVE1","WAVE2","WALK2")):
+            h.write("#define END_%s %d\n" % (nm, k * 4))
         h.write("extern const unsigned char font_tiles[];\n")
         h.write("extern const unsigned char robbo_chars[];\n")
         h.write("extern const unsigned char wall_chars[];\n")
@@ -184,6 +199,7 @@ def main():
         h.write("extern const unsigned char anim_slots[];\n")
         h.write("extern const unsigned char logo_tiles[];\n")
         h.write("extern const unsigned int logo_rainbow[LOGO_RAINBOW_N][4];\n")
+        h.write("extern const unsigned char ending_tiles[];\n")
         h.write("BANKREF_EXTERN(gfx)\n")
         h.write("#define GFX_BANK BANK(gfx)   /* SWITCH_ROM(GFX_BANK) before reading the tiles */\n")
         h.write("#endif\n")
@@ -199,6 +215,7 @@ def main():
         c.write("const unsigned char anim_slots[%d] = {" % len(ANIM)
                 + ",".join("0x%02X" % v for v in ANIM) + "};\n")
         emit(c, "logo_tiles", logo)
+        emit(c, "ending_tiles", ending)
         c.write("const unsigned int logo_rainbow[%d][4] = {\n" % rainbow_n)
         for pal in rainbow:
             c.write("  {" + ",".join("0x%04X" % v for v in pal) + "},\n")

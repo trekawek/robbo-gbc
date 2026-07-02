@@ -267,10 +267,16 @@ unsigned char warp_gr(void) __banked {
         mw_tdig(10, 8, disp % 10);
         wait_vbl_done();
         keys = joypad();
+        /* ENDING_TEST adds the bonus test planet (GR_NLEVELS+1) to the warp range. */
+#if ENDING_TEST
+#define N_WARP (GR_NLEVELS + 1)
+#else
+#define N_WARP GR_NLEVELS
+#endif
         if ((keys & (J_UP | J_RIGHT)) && !(prev & (J_UP | J_RIGHT)))
-            lvl = (unsigned char)((lvl + 1) % GR_NLEVELS);
+            lvl = (unsigned char)((lvl + 1) % N_WARP);
         if ((keys & (J_DOWN | J_LEFT)) && !(prev & (J_DOWN | J_LEFT)))
-            lvl = (unsigned char)((lvl + GR_NLEVELS - 1) % GR_NLEVELS);
+            lvl = (unsigned char)((lvl + N_WARP - 1) % N_WARP);
         if ((keys & (J_A | J_START)) && !(prev & (J_A | J_START))) { waitpadup(); return lvl; }
         if ((keys & J_B) && !(prev & J_B)) { waitpadup(); return 0xFF; }
         prev = keys;

@@ -14,6 +14,12 @@ ROM    := $(BUILD)/robbo.gbc
 ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
 GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
 
+# `make ENDING_TEST=1` adds a trivial bonus planet (last level) whose completion
+# triggers the final animation -- warp to the highest level and step right twice.
+ifdef ENDING_TEST
+LCCFLAGS_EXTRA += -DENDING_TEST=1
+endif
+
 LCCFLAGS  := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size $(LCCFLAGS_EXTRA)
 LINKFLAGS := $(LCCFLAGS) -autobank
 # board.c is one huge translation unit (GNU Robbo's 940-line update_game, split
@@ -31,7 +37,7 @@ ATARIDAT  := $(GENDIR)/atari_levels.dat
 
 HAND := $(SRCDIR)/globals.c $(SRCDIR)/glue.c $(SRCDIR)/render.c $(SRCDIR)/loader.c \
         $(SRCDIR)/hud.c $(SRCDIR)/atari_pal.c $(SRCDIR)/menu.c \
-        $(SRCDIR)/object_tables.c $(SRCDIR)/sound.c
+        $(SRCDIR)/ending.c $(SRCDIR)/object_tables.c $(SRCDIR)/sound.c
 SRCS := $(HAND) $(LEVELS) $(GFX)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS))) \
         $(BUILD)/board.o $(BUILD)/board_upd.o $(BUILD)/board_robbo.o

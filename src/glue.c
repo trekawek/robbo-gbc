@@ -21,6 +21,8 @@ void render_gr_robbo(void);
 void hud_gr_init(void) __banked;
 void hud_gr_draw(void) __banked;
 void render_gr_logo(void);
+void render_gr_ending(void);
+void ending_gr_show(void) __banked;
 void title_gr_show(void) __banked;
 unsigned char pause_gr(void) __banked;
 unsigned char warp_gr(void) __banked;
@@ -92,7 +94,11 @@ void main(void) {
 
     /* pack/game state */
     selected_pack = 0;
+#if ENDING_TEST
+    level_packs[0].last_level = GR_NLEVELS + 1;   /* bonus test planet is the last */
+#else
     level_packs[0].last_level = GR_NLEVELS;
+#endif
     level_packs[0].level_selected = 1;
     level_packs[0].level_reached = 1;
     game_mode = GAME_ON;
@@ -116,6 +122,25 @@ void main(void) {
 
     while (1) {
         wait_vbl_done();
+
+        /* Last level finished (capsule): play the ending, then back to title. */
+        if (game_mode == END_SCREEN) {
+            render_gr_ending();          /* HOME: load ending tiles into 0.. */
+            ending_gr_show();            /* banked: animation + congratulations */
+            game_mode = GAME_ON;
+            render_gr_logo();
+            title_gr_show();
+            render_gr_init();
+            level_packs[0].level_selected = 1;
+            gr_score = 0;
+            start_level();
+            DISPLAY_OFF; hud_gr_init(); WX_REG = 7; WY_REG = 128; SHOW_WIN; DISPLAY_ON;
+            last_sel = level_packs[0].level_selected;
+            last_screws = (unsigned char)robbo.screws;
+            need_render = 1; tick = 0; prev = pstart = 0;
+            continue;
+        }
+
         /* --- all VRAM writes happen here, inside VBlank (real hardware locks
                VRAM during active display).  This flushes the cells update_game
                dirtied on the previous tick. --- */

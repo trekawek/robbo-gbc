@@ -88,6 +88,28 @@ int load_level_data(int level_number)
     }
 #endif
 
+#if ENDING_TEST
+    /* Bonus test planet = level GR_NLEVELS+1 (the last level).  Trivial: step
+       right onto the screw (opens the exit), then right onto the capsule to win
+       and trigger the final animation.  `make ENDING_TEST=1`; warp to the top. */
+    if (level_number == GR_NLEVELS + 1) {
+        level.w = 6; level.h = 3; level.colour = 0x606060;
+        for (y = 0; y < 3; y++) for (x = 0; x < 6; x++) {
+            t = WALL;
+            if (y == 1) {
+                if      (x == 1) t = ROBBO;
+                else if (x == 2) t = SCREW;
+                else if (x == 3) t = CAPSULE;
+                else if (x == 4) t = EMPTY_FIELD;
+            }
+            board[x][y].type = t;
+            create_object(x, y, t);
+            if (t == SCREW) robbo.screws++;
+        }
+        return FALSE;
+    }
+#endif
+
     if (idx < 0 || idx >= GR_NLEVELS) return TRUE;
     w = gr_level_w[idx];
     h = gr_level_h[idx];
