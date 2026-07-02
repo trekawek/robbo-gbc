@@ -19,7 +19,8 @@ void render_gr_init(void);
 #define EPAL   0            /* scene BG palette                       */
 #define BLANK  0x40         /* the all-black playfield font tile (64) */
 #define TXT    128          /* I.FNT font base (ASCII 0x20 = tile 128) */
-#define GROUND_ROW 15       /* ground occupies rows 15..16            */
+#define GROUND_ROW 16       /* ground occupies rows 16..17 (screen bottom) */
+#define FEET_ROW   14       /* Robbo/ship stand here (rows 14..15) on the ground */
 
 /* 17 stars: Atari STAT (x 0..30, y 0..12) scaled to the 20x14 GBC sky. */
 static const unsigned char STARS[17][2] = {
@@ -119,48 +120,48 @@ void ending_gr_show(void) __banked {
     snd_play(SND_WALK);
     rc = 16;
     while (rc > 12) {
-        draw_mt(rc, 13, (rc & 1) ? END_WALK1 : END_WALK2);
+        draw_mt(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(7);
-        erase_mt(rc, 13);
+        erase_mt(rc, FEET_ROW);
         rc--;
     }
-    draw_mt(rc, 13, END_STAND);
+    draw_mt(rc, FEET_ROW, END_STAND);
     ewait(20);
 
     /* the ship descends from the top to the ground */
     snd_play(SND_LAND);
-    for (sr = 0; sr <= 13; sr++) {
+    for (sr = 0; sr <= FEET_ROW; sr++) {
         draw_ship(sc, sr);
         ewait(5);
-        if (sr < 13) erase_ship(sc, sr);
+        if (sr < FEET_ROW) erase_ship(sc, sr);
     }
     ewait(15);
 
     /* Robbo waves 14 times (alternating wave frames) */
     snd_play(SND_WAVE);
     for (i = 0; i < 14; i++) {
-        draw_mt(rc, 13, (i & 1) ? END_WAVE1 : END_WAVE2);
+        draw_mt(rc, FEET_ROW, (i & 1) ? END_WAVE1 : END_WAVE2);
         ewait(8);
     }
-    draw_mt(rc, 13, END_STAND);
+    draw_mt(rc, FEET_ROW, END_STAND);
     ewait(15);
 
     /* Robbo walks left onto the ship (col 12 -> 10), then boards (disappears) */
     snd_play(SND_WALK);
     while (rc > 10) {
-        erase_mt(rc, 13);
+        erase_mt(rc, FEET_ROW);
         rc--;
-        draw_ship(sc, 13);                 /* keep the ship under him */
-        draw_mt(rc, 13, (rc & 1) ? END_WALK1 : END_WALK2);
+        draw_ship(sc, FEET_ROW);                 /* keep the ship under him */
+        draw_mt(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(8);
     }
-    erase_mt(rc, 13);                       /* Robbo is aboard: no longer visible */
-    draw_ship(sc, 13);
+    erase_mt(rc, FEET_ROW);                       /* Robbo is aboard: no longer visible */
+    draw_ship(sc, FEET_ROW);
     ewait(20);
 
     /* the ship (Robbo aboard, unseen) flies up and off the top */
     snd_play(SND_FLY);
-    for (sr = 13; ; sr--) {
+    for (sr = FEET_ROW; ; sr--) {
         draw_ship(sc, sr);
         ewait(5);
         erase_ship(sc, sr);
