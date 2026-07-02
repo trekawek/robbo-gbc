@@ -52,8 +52,15 @@ void erase_mt(unsigned char col, unsigned char row) __banked {
 }
 
 void ewait(unsigned char frames) __banked {
-    while (frames--) wait_vbl_done();
+    while (frames--) { wait_vbl_done(); snd_update(); }
 }
+
+/* Atari ending sound indices (TITLE.ASM CONGR SOUND_ calls) -> port snd_play. */
+#define SND_WALK  5    /* Robbo walks         ($05) */
+#define SND_LAND  14   /* ship lands          ($0E) */
+#define SND_WAVE  13   /* Robbo waves         ($0D) */
+#define SND_FLY   11   /* ship flies away     ($0B) */
+#define SND_TEXT  0    /* congratulations     ($00) */
 
 /* ---- text ---- */
 void etext(unsigned char col, unsigned char row, const char *s) __banked {
@@ -106,9 +113,12 @@ void ending_gr_show(void) __banked {
     draw_scene();
     SHOW_BKG; DISPLAY_ON;
 
-    /* Robbo walks in from the right (col 16 -> 8), on the ground (rows 13-14) */
+    sc = 8;                                 /* ship lands centred (cols 8..11) */
+
+    /* Robbo walks in from the right, stopping just right of the ship (col 12) */
+    snd_play(SND_WALK);
     rc = 16;
-    while (rc > 8) {
+    while (rc > 12) {
         draw_mt(rc, 13, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(7);
         erase_mt(rc, 13);
@@ -117,8 +127,8 @@ void ending_gr_show(void) __banked {
     draw_mt(rc, 13, END_STAND);
     ewait(20);
 
-    /* the ship descends (col 4) from the top to the ground */
-    sc = 4;
+    /* the ship descends from the top to the ground */
+    snd_play(SND_LAND);
     for (sr = 0; sr <= 13; sr++) {
         draw_ship(sc, sr);
         ewait(5);
@@ -127,6 +137,7 @@ void ending_gr_show(void) __banked {
     ewait(15);
 
     /* Robbo waves 14 times (alternating wave frames) */
+    snd_play(SND_WAVE);
     for (i = 0; i < 14; i++) {
         draw_mt(rc, 13, (i & 1) ? END_WAVE1 : END_WAVE2);
         ewait(8);
@@ -134,53 +145,45 @@ void ending_gr_show(void) __banked {
     draw_mt(rc, 13, END_STAND);
     ewait(15);
 
-    /* Robbo walks left onto the ship (col 8 -> 5) */
-    while (rc > 5) {
+    /* Robbo walks left onto the ship (col 12 -> 10), then boards (disappears) */
+    snd_play(SND_WALK);
+    while (rc > 10) {
         erase_mt(rc, 13);
         rc--;
         draw_ship(sc, 13);                 /* keep the ship under him */
         draw_mt(rc, 13, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(8);
     }
+    erase_mt(rc, 13);                       /* Robbo is aboard: no longer visible */
+    draw_ship(sc, 13);
     ewait(20);
 
-    /* the ship (with Robbo aboard) flies up and off the top */
-    for (sr = 13; sr != 0xFF; sr--) {
+    /* the ship (Robbo aboard, unseen) flies up and off the top */
+    snd_play(SND_FLY);
+    for (sr = 13; ; sr--) {
         draw_ship(sc, sr);
-        draw_mt(rc, sr, END_STAND);
         ewait(5);
         erase_ship(sc, sr);
-        erase_mt(rc, sr);
         if (sr == 0) break;
     }
     ewait(30);
 
-    /* ---- congratulations text (English) ---- */
-    {
-        /* The I.FNT font at tile 128 has letters + digits but no punctuation, so
-           the text is uppercase words only.  "|" marks a page break (hold+clear). */
-        static const char *const PAGES[] = {
-            "", "CONGRATULATIONS", "", "|",
-            "ROBBO HAS BROKEN", "THROUGH THE ENEMY", "PLANETARY SYSTEM", "|",
-            "THE PLANETS IN HIS", "MEMORY ARE VERY", "VALUABLE TO EARTH", "|",
-            "YOU HAVE COMPLETED", "OUR FIRST GAME", "IF YOU LIKED IT", "LOOK FOR MORE", "|",
-            "REMEMBER THE BEST", "GAMES COME ONLY FROM", "AVALON COMPUTER LAB", "|",
-            "PRESS START",
-        };
-        unsigned char row = 4, k;
-        eclear();
-        for (k = 0; k < sizeof(PAGES) / sizeof(PAGES[0]); k++) {
-            if (PAGES[k][0] == '|') {          /* page break: hold, then clear */
-                ewait(150);
-                eclear();
-                row = 4;
-            } else {
-                if (PAGES[k][0]) etext_c(row, PAGES[k]);
-                row += 2;
-            }
-        }
-        /* PRESS START stays on screen until pressed */
-        while (1) { wait_vbl_done(); if (joypad() & J_START) break; }
-        waitpadup();
-    }
+    /* ---- congratulations text (English), all on one screen ---- */
+    /* The I.FNT font at tile 128 has letters + digits but no punctuation, so the
+       text is uppercase words only. */
+    eclear();
+    snd_play(SND_TEXT);
+    etext_c(2,  "CONGRATULATIONS");
+    etext_c(5,  "ROBBO HAS BROKEN");
+    etext_c(6,  "THROUGH THE ENEMY");
+    etext_c(7,  "PLANETARY SYSTEM");
+    etext_c(9,  "THE PLANETS IN HIS");
+    etext_c(10, "MEMORY ARE VERY");
+    etext_c(11, "VALUABLE TO EARTH");
+    etext_c(13, "YOU HAVE COMPLETED");
+    etext_c(14, "OUR FIRST GAME");
+    etext_c(17, "PRESS START");
+    /* PRESS START stays on screen until pressed */
+    while (1) { wait_vbl_done(); snd_update(); if (joypad() & J_START) break; }
+    waitpadup();
 }
