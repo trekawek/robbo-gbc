@@ -95,6 +95,21 @@ void erase_ship(unsigned char col, unsigned char row) __banked {
     erase_mt(col, row); erase_mt(col + 2, row);
 }
 
+/* Robbo is drawn with 4 hardware sprites (colour 0 = transparent) so that when
+   he steps onto the ship the ship shows through instead of a black box.  The
+   ending tiles are shared between BG and OBJ (both at 0x8000), so the sprites
+   reference the same ending_tiles indices (END_WALK1 etc.). */
+void robbo_at(unsigned char col, unsigned char row, unsigned char frame) __banked {
+    unsigned char px = (unsigned char)(col * 8 + 8), py = (unsigned char)(row * 8 + 16);
+    set_sprite_tile(0, frame);     move_sprite(0, px,     py);
+    set_sprite_tile(1, frame + 1); move_sprite(1, px + 8, py);
+    set_sprite_tile(2, frame + 2); move_sprite(2, px,     py + 8);
+    set_sprite_tile(3, frame + 3); move_sprite(3, px + 8, py + 8);
+}
+void robbo_hide(void) __banked {
+    unsigned char i; for (i = 0; i < 4; i++) move_sprite(i, 0, 0);
+}
+
 /* ===================================================================== */
 void ending_gr_show(void) __banked {
     const palette_color_t epal[4] = { 0x0000, 0x040A, 0x060A, 0x56B5 };
@@ -112,23 +127,23 @@ void ending_gr_show(void) __banked {
       for (y = 0; y < 18; y++) set_bkg_tiles(0, y, 20, 1, arow);
       VBK_REG = 0; }
     draw_scene();
-    SHOW_BKG; DISPLAY_ON;
+    { const palette_color_t opal[4] = { 0x0000, 0x040A, 0x060A, 0x56B5 };  /* idx0 transparent */
+      set_sprite_palette(0, 1, opal); }
+    SPRITES_8x8; robbo_hide();
+    SHOW_BKG; SHOW_SPRITES; DISPLAY_ON;
 
     sc = 8;                                 /* ship lands centred (cols 8..11) */
 
     /* Robbo walks in from the right, stopping just right of the ship (col 12) */
     snd_play(SND_WALK);
-    rc = 16;
-    while (rc > 12) {
-        draw_mt(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
+    for (rc = 16; rc > 12; rc--) {
+        robbo_at(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(7);
-        erase_mt(rc, FEET_ROW);
-        rc--;
     }
-    draw_mt(rc, FEET_ROW, END_STAND);
+    robbo_at(rc, FEET_ROW, END_STAND);
     ewait(20);
 
-    /* the ship descends from the top to the ground */
+    /* the ship descends from the top to the ground (Robbo sprite stays put) */
     snd_play(SND_LAND);
     for (sr = 0; sr <= FEET_ROW; sr++) {
         draw_ship(sc, sr);
@@ -140,23 +155,21 @@ void ending_gr_show(void) __banked {
     /* Robbo waves 14 times (alternating wave frames) */
     snd_play(SND_WAVE);
     for (i = 0; i < 14; i++) {
-        draw_mt(rc, FEET_ROW, (i & 1) ? END_WAVE1 : END_WAVE2);
+        robbo_at(rc, FEET_ROW, (i & 1) ? END_WAVE1 : END_WAVE2);
         ewait(8);
     }
-    draw_mt(rc, FEET_ROW, END_STAND);
+    robbo_at(rc, FEET_ROW, END_STAND);
     ewait(15);
 
-    /* Robbo walks left onto the ship (col 12 -> 10), then boards (disappears) */
+    /* Robbo walks left onto the ship (transparent sprite - the ship shows
+       through), then boards and disappears */
     snd_play(SND_WALK);
     while (rc > 10) {
-        erase_mt(rc, FEET_ROW);
         rc--;
-        draw_ship(sc, FEET_ROW);                 /* keep the ship under him */
-        draw_mt(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
+        robbo_at(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
         ewait(8);
     }
-    erase_mt(rc, FEET_ROW);                       /* Robbo is aboard: no longer visible */
-    draw_ship(sc, FEET_ROW);
+    robbo_hide();                             /* Robbo is aboard: no longer visible */
     ewait(20);
 
     /* the ship (Robbo aboard, unseen) flies up and off the top */
@@ -168,22 +181,21 @@ void ending_gr_show(void) __banked {
         if (sr == 0) break;
     }
     ewait(30);
+    HIDE_SPRITES;
 
     /* ---- congratulations text (English), all on one screen ---- */
     /* The I.FNT font at tile 128 has letters + digits but no punctuation, so the
        text is uppercase words only. */
     eclear();
     snd_play(SND_TEXT);
-    etext_c(2,  "CONGRATULATIONS");
-    etext_c(5,  "ROBBO HAS BROKEN");
-    etext_c(6,  "THROUGH THE ENEMY");
-    etext_c(7,  "PLANETARY SYSTEM");
-    etext_c(9,  "THE PLANETS IN HIS");
-    etext_c(10, "MEMORY ARE VERY");
-    etext_c(11, "VALUABLE TO EARTH");
-    etext_c(13, "YOU HAVE COMPLETED");
-    etext_c(14, "OUR FIRST GAME");
-    etext_c(17, "PRESS START");
+    etext_c(3,  "CONGRATULATIONS");
+    etext_c(6,  "ROBBO HAS BROKEN");
+    etext_c(7,  "THROUGH THE ENEMY");
+    etext_c(8,  "PLANETARY SYSTEM");
+    etext_c(10, "THE PLANS IN HIS");
+    etext_c(11, "MEMORY ARE VERY");
+    etext_c(12, "VALUABLE TO EARTH");
+    etext_c(15, "PRESS START");
     /* PRESS START stays on screen until pressed */
     while (1) { wait_vbl_done(); snd_update(); if (joypad() & J_START) break; }
     waitpadup();

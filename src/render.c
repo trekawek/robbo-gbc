@@ -218,6 +218,9 @@ void render_gr_logo(void) {
 void render_gr_ending(void) {
     SWITCH_ROM(GFX_BANK);
     set_bkg_data(0, ENDING_NTILES, ending_tiles);
+    /* Also into the OBJ tile area (0x8000): BG uses 0x8800 signed addressing, so
+       BG and OBJ don't share tiles - Robbo is drawn as sprites (transparent bg). */
+    set_sprite_data(0, ENDING_NTILES, ending_tiles);
 }
 
 void render_gr_load(void) {
