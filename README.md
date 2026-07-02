@@ -7,6 +7,8 @@ It runs the game logic of **[GNU Robbo](https://sourceforge.net/projects/gnurobb
 faithful open-source reimplementation — ported to the Game Boy Color, with the original Atari
 8-bit graphics, sound and colours.
 
+![Robbo on Game Boy Color — the rainbow title logo, then gameplay across several levels (blue walls, red brick walls, roaming guns).](docs/gameplay.gif)
+
 ## What it is
 
 Robbo is a tile-based puzzle game. In each room you collect every **screw** to activate the exit
