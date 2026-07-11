@@ -22,8 +22,14 @@ void hud_gr_init(void) __banked;
 /* ============================ TITLE SCREEN =========================== */
 /* ===================================================================== */
 #define TXT_BASE  128
-#define TPAL      0           /* white text on black (palette 0) */
-#define LPAL      2           /* 3D blue logo (palette 2)        */
+/* Atari-style palette bands (see the PAL title reference): the credits are
+   bright, everything else (controls + instruction text) is the dim gray, the
+   horizontal rules are dark red, and the INSTRUCTIONS heading is inverse. */
+#define TPAL      0           /* gray text (controls + typewriter)   */
+#define BPAL      1           /* bright credits                      */
+#define LPAL      2           /* logo (rainbow-cycled)               */
+#define RPAL      3           /* dark-red horizontal rules           */
+#define IPAL      4           /* inverse-video heading (gray box)    */
 #define SDIG      224         /* small single-row digits 224..233 */
 #define SCOLON    234
 #define SHYPHEN   235
@@ -32,13 +38,19 @@ void hud_gr_init(void) __banked;
 #define SPERIOD   238
 #define SBANG     239
 #define SQUEST    240
+#define SCOPY     241         /* (c) copyright symbol */
+#define SRULE     242         /* horizontal-rule segment */
+#define SDIAM     243         /* small diamond (the Atari arrow-keys mark) */
+#define SPLUS     244
 #define BLANK     0x40        /* the all-black playfield tile */
 #define LOGO_X    ((20 - LOGO_TW) / 2)   /* centre the 14-tile-wide logo */
 
-#define NVIS    8
+#define NVIS    5             /* instruction window rows (between the rules) */
 #define BOXX    ((20 - INSTR_WIDTH) / 2)
-#define BOXY    10
+#define BOXY    12
 #define BOTROW  (BOXY + NVIS - 1)
+#define RULE_TOP 11
+#define RULE_BOT 17
 #define CHAR_DELAY  2
 #define HOLD_LINE  28
 #define HOLD_BLANK 12
@@ -57,6 +69,10 @@ static const unsigned char COMMA[8]   = {0,0,0,0,0,0x30,0x30,0x60};
 static const unsigned char PERIOD[8]  = {0,0,0,0,0,0,0x60,0x60};
 static const unsigned char BANG[8]    = {0x20,0x20,0x20,0x20,0x20,0,0x20,0};
 static const unsigned char QUEST[8]   = {0x70,0x10,0x20,0x20,0,0x20,0,0};
+static const unsigned char COPYR[8]   = {0x3C,0x42,0x99,0xA1,0xA1,0x99,0x42,0x3C};
+static const unsigned char RULEB[8]   = {0,0,0,0xFF,0xFF,0,0,0};
+static const unsigned char DIAM[8]    = {0x00,0x18,0x3C,0x7E,0x3C,0x18,0x00,0x00};
+static const unsigned char PLUSB[8]   = {0x00,0x10,0x10,0x7C,0x10,0x10,0x00,0x00};
 
 void load_mono(unsigned char vram, const unsigned char *bits) __banked {
     unsigned char t[16], r;
@@ -77,11 +93,12 @@ unsigned char glyph(char c) __banked {
         case '.': return SPERIOD;
         case '!': return SBANG;
         case '?': return SQUEST;
+        case '+': return SPLUS;
     }
     return TXT_BASE + (((unsigned char)c - 0x20) & 0x3F);
 }
-void bg_str(unsigned char x, unsigned char y, const char *s) __banked {
-    while (*s) { bg_put(x++, y, glyph(*s), TPAL); s++; }
+void bg_str(unsigned char x, unsigned char y, const char *s, unsigned char pal) __banked {
+    while (*s) { bg_put(x++, y, glyph(*s), pal); s++; }
 }
 unsigned char line_len(unsigned char li) __banked {
     unsigned char n = 0;
@@ -90,10 +107,13 @@ unsigned char line_len(unsigned char li) __banked {
     return n;
 }
 void draw_line(unsigned char row, unsigned char li) __banked {
+    /* line 0 is the INSTRUCTIONS heading: its glyphs render inverse-video,
+       like the Atari's label (the centring spaces stay black). */
     unsigned char x = 0;
     if (li != 0xFF)
         for (; x < INSTR_WIDTH && INSTR[li][x]; x++)
-            bg_put(BOXX + x, row, glyph(INSTR[li][x]), TPAL);
+            bg_put(BOXX + x, row, glyph(INSTR[li][x]),
+                   (li == 0 && INSTR[li][x] != ' ') ? IPAL : TPAL);
     for (; x < INSTR_WIDTH; x++) bg_put(BOXX + x, row, BLANK, TPAL);
 }
 void click(void) __banked {
@@ -102,23 +122,44 @@ void click(void) __banked {
 
 extern unsigned int gr_logo_rainbow[LOGO_RAINBOW_N][4];
 
+/* Title screen, laid out like the Atari original (TITLE.ASM TPDL):
+     [rainbow logo]
+     (c) 1989 BY AVALON            <- bright
+     PROGRAM AND GRAPHICS
+     JANUSZ PELC
+     CONTROL:  D-PAD <diamonds>    <- gray two-column block
+     FIRE:     A + D-PAD
+     ---------------------         <- dark-red rule
+     [5-line instruction window]   <- typewriter; INSTRUCTIONS heading inverse
+     ---------------------         <- dark-red rule
+   No PRESS START: like the Atari, it just waits (START or A begins). */
 void title_gr_show(void) __banked {
     unsigned char x, y, d, r;
     unsigned char vis[NVIS];
-    unsigned char li_next, col, curlen, state, delay, hold, blink, ps_on, hue;
-    const palette_color_t tpal[4] = { 0x0000, 0x294A, 0x56B5, 0x7FFF };
+    unsigned char li_next, col, curlen, state, delay, hold, blink, hue;
+    /* PAL-reference colours: gray $08-ish text, bright $0E credits, dark-red
+       rules, inverse heading = gray box with black glyphs. */
+    const palette_color_t tpal[4] = { 0x0000, 0x18C6, 0x318C, 0x4631 };
+    const palette_color_t bpal[4] = { 0x0000, 0x294A, 0x56B5, 0x6B5A };
+    const palette_color_t rpal[4] = { 0x0000, 0x0000, 0x0000, 0x040A };
+    const palette_color_t ipal[4] = { 0x4631, 0x4631, 0x18C6, 0x0000 };
 
     snd_stop();
     DISPLAY_OFF;
     HIDE_WIN;
     SCX_REG = 0; SCY_REG = 0;
-    /* logo tiles are loaded into 0..26 by render_gr_logo() before this call */
+    /* logo tiles are loaded into 0..LOGO_NTILES-1 by render_gr_logo() */
     for (d = 0; d < 10; d++) load_mono(SDIG + d, DIGITS[d]);
     load_mono(SCOLON, COLON);   load_mono(SHYPHEN, HYPHEN);
     load_mono(CURSOR, CARET);   load_mono(SCOMMA, COMMA);
     load_mono(SPERIOD, PERIOD); load_mono(SBANG, BANG);
-    load_mono(SQUEST, QUEST);
+    load_mono(SQUEST, QUEST);   load_mono(SCOPY, COPYR);
+    load_mono(SRULE, RULEB);    load_mono(SDIAM, DIAM);
+    load_mono(SPLUS, PLUSB);
     set_bkg_palette(TPAL, 1, tpal);
+    set_bkg_palette(BPAL, 1, bpal);
+    set_bkg_palette(RPAL, 1, rpal);
+    set_bkg_palette(IPAL, 1, ipal);
     hue = 0;
     set_bkg_palette(LPAL, 1, (const palette_color_t *)gr_logo_rainbow[0]);
     for (y = 0; y < 32; y++) for (x = 0; x < 32; x++) bg_put(x, y, BLANK, TPAL);
@@ -129,16 +170,28 @@ void title_gr_show(void) __banked {
         for (x = 0; x < LOGO_TW; x++)
             bg_put(LOGO_X + x, r, (unsigned char)(r * LOGO_TW + x), LPAL);
 
-    bg_str(3, 4, "1989 BY AVALON");
-    bg_str(5, 5, "JANUSZ PELC");
-    bg_str(0, 7, "MOVE D-PAD  FIRE A-B");
+    /* credits (bright, centred) */
+    bg_put(2, 4, SCOPY, BPAL);
+    bg_str(4, 4, "1989 BY AVALON", BPAL);
+    bg_str(0, 5, "PROGRAM AND GRAPHICS", BPAL);
+    bg_str(4, 6, "JANUSZ PELC", BPAL);
+
+    /* controls: two-column block, gray, with the Atari diamond marks */
+    bg_str(0, 8, "CONTROL:  D-PAD", TPAL);
+    for (d = 0; d < 4; d++) bg_put(16 + d, 8, SDIAM, TPAL);
+    bg_str(0, 9, "FIRE:     A + D-PAD", TPAL);
+
+    /* horizontal rules around the instruction window */
+    for (x = 0; x < 20; x++) {
+        bg_put(x, RULE_TOP, SRULE, RPAL);
+        bg_put(x, RULE_BOT, SRULE, RPAL);
+    }
 
     for (r = 0; r < NVIS; r++) { vis[r] = 0xFF; draw_line(BOXY + r, 0xFF); }
     li_next = 0;
     vis[NVIS - 1] = li_next++;
     col = 0; curlen = line_len(vis[NVIS - 1]);
-    state = 0; delay = 0; hold = 0; blink = 0; ps_on = 1;
-    bg_str(4, 8, "PRESS START");
+    state = 0; delay = 0; hold = 0; blink = 0;
 
     SHOW_BKG; DISPLAY_ON;
     while (1) {
@@ -148,11 +201,6 @@ void title_gr_show(void) __banked {
         if ((blink & 7) == 0) {
             if (++hue >= LOGO_RAINBOW_N) hue = 0;
             set_bkg_palette(LPAL, 1, (const palette_color_t *)gr_logo_rainbow[hue]);
-        }
-        if ((blink & 15) == 0) {
-            ps_on ^= 1;
-            if (ps_on) bg_str(4, 8, "PRESS START");
-            else for (x = 0; x < 11; x++) bg_put(4 + x, 8, BLANK, TPAL);
         }
         if (state == 0) {
             if (col < curlen)
@@ -164,7 +212,8 @@ void title_gr_show(void) __banked {
                 delay--;
             } else {
                 char c = INSTR[vis[NVIS - 1]][col];
-                bg_put(BOXX + col, BOTROW, glyph(c), TPAL);
+                bg_put(BOXX + col, BOTROW, glyph(c),
+                       (vis[NVIS - 1] == 0 && c != ' ') ? IPAL : TPAL);
                 if (c != ' ') click();
                 col++; delay = CHAR_DELAY;
             }
@@ -181,7 +230,8 @@ void title_gr_show(void) __banked {
                 state = 0; delay = 0;
             }
         }
-        if (joypad() & J_START) break;
+        /* Atari-style: no PRESS START prompt; the trigger (A) or START begins */
+        if (joypad() & (J_START | J_A)) break;
     }
     waitpadup();
 }

@@ -14,7 +14,8 @@ Output: src/gen/instr.h  -  INSTR[][INSTR_WIDTH+1], one display line per row,
 """
 import sys, os, re
 
-WRAP = 12   # display window width, in characters (matches the original)
+WRAP = 20   # display window width: the full GBC screen width, mirroring the
+            # Atari's full-screen-width instruction window
 
 # Faithful English translation of the original instruction; '' = paragraph break.
 PARAGRAPHS = [
@@ -65,6 +66,10 @@ def build_lines():
         lines.extend(wrap(para, WRAP))
     while lines and lines[0] == "": lines.pop(0)
     while lines and lines[-1] == "": lines.pop()
+    # centre the INSTRUCTIONS heading in the window (the Atari centres its
+    # inverse-video label); menu.c renders line 0's non-space glyphs inverse.
+    if lines and lines[0] == "INSTRUCTIONS":
+        lines[0] = " " * ((WRAP - len(lines[0])) // 2) + lines[0]
     return lines
 
 def main():
