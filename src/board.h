@@ -29,16 +29,14 @@
 #define DEFAULT_VIEWPORT_WIDTH 16
 #define DEFAULT_VIEWPORT_HEIGHT 12
 
-/* Object delays.  gnu-robbo tuned these for its 25Hz cycle rate; the GBC engine
-   only reaches ~8 game-cycles/sec, so every object/robbo delay would play out
-   ~3x too slowly.  GR_DELAY_DIV scales them down to keep the intended feel
-   (the relative timing between objects is preserved).  SCALE() floors at 1. */
+/* Original GNU Robbo object delays, scaled for this port's game cadence.
+   Keep the relative timing between objects; SCALE() floors at one tick. */
 #define GR_DELAY_DIV 2
 #define SCALE(x) ((x) / GR_DELAY_DIV < 1 ? 1 : (x) / GR_DELAY_DIV)
 
-/* Main runs the game logic (update_game + input) every GR_TICK_GATE loop
-   iterations.  Busy iterations can span multiple display frames; the camera
-   eases independently on every VBlank.  Lower gates increase game speed. */
+/* Minimum VBlanks between game updates, including frames spent on logic and
+   rendering. Overruns do not accumulate catch-up ticks; camera and sound
+   continue independently on VBlank. */
 #define GR_TICK_GATE 3
 #define DELAY_RADIOACTIVE_FIELD  SCALE(3)
 #define DELAY_BIRD SCALE(4)
@@ -134,7 +132,7 @@ struct object
   unsigned char moved;		/* delay countdown till next move */
   unsigned char shooted;	/* delay countdown till next shot (guns) */
   unsigned char rotated;	/* delay countdown till next rotate (guns) */
-  unsigned char processed;	/* stamped with cycle_count once processed */
+  unsigned char processed;	/* low byte of cycle_count once processed */
   unsigned char destroyable : 1;/* can be destroyed by a shot/push box */
   unsigned char blowable : 1;	/* can be blown up by a bomb */
   unsigned char killing : 1;	/* dangerous for robbo by closeness */
@@ -153,10 +151,10 @@ GR_GLOBAL struct object board[MAX_W][MAX_H];	/* The game area, indexed [x][y] */
 
 /* GBC perf: per-row count of active (inlist=1) cells.  update_game skips whole
    rows with zero active cells (most of the board) instead of walking all 496
-   cells every cycle.  Maintained by incrementing on activation (create_object
-   active-seed + SET_MOVED/SET_BLOWED) and recomputed from truth at the end of
-   each scanned row, so a row count is 0 only when that row genuinely has no
-   active cell - the y-then-x scan ORDER is unchanged. */
+   cells every cycle. Every inlist transition updates this exact count:
+   creation/delay setters activate; replacement/clearing/retirement remove.
+   This includes moves into cells already visited, without a second row scan.
+   The y-then-x gameplay scan order is unchanged. */
 GR_GLOBAL unsigned char gr_row_active[MAX_H];
 
 GR_GLOBAL struct

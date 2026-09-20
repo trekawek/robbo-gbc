@@ -48,6 +48,7 @@ typedef unsigned long Uint32;
 #define SFX_KILL 13
 #define SFX_MAGNET 14
 #define SFX_EXIT_OPEN 15
+#define SFX_KNOCK 16
 /* music is unsupported on GBC: no-op like sound.h without HAVE_MUSIC */
 #define play_music()
 #define music_stop()
@@ -100,7 +101,7 @@ GR_GLOBAL struct { int redraw; } intro_screen;
 GR_GLOBAL struct { int field_size; } video;
 
 /* ---- misc globals ---- */
-GR_GLOBAL int cycle_count;	/* running cycle count for time stamping */
+GR_GLOBAL unsigned int cycle_count; /* wrapping cycle count for time stamping */
 GR_GLOBAL int game_mode;
 GR_GLOBAL int sound;
 

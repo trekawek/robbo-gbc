@@ -69,6 +69,15 @@ java --class-path "$CAMERA_TEST_CP" tools/CameraTest.java build/robbo.gbc
 It checks scrolling in all four directions, reversals, level bounds, vertical map wrapping,
 and that scroll registers only change outside the visible frame.
 
+All 15 sound effects can be recorded and checked against the Atari tables with
+`make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its
+dependency JARs). See [the sound audit](docs/sound-audit.md) for the comparison,
+remaining hardware approximations, and reference-audio generation.
+
+[Performance measurements](docs/performance.md) cover ten representative rooms,
+including level 4, with a symbol-driven Coffee GB benchmark and per-tick board
+comparisons.
+
 ## Layout
 
 ```

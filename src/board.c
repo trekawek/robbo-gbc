@@ -20,6 +20,7 @@
 
 #include "game.h"
 #include "board_internal.h"
+#include <string.h>
 
 /* Defines */
 /*
@@ -78,24 +79,10 @@ const unsigned char gr_act_type[71] = {
 void
 update_game(void)
 {
-    int             x_tmp,
-                    flag,
-                    sflag,
-                    temp_state = 0,
-	temp_blowed = 0,
-	temp_direction = 0;
-    struct Coords   coords,
-                    coords_temp,
-                    dest,
-                    coords_side_behind,
-                    coords_behind;
-    int             x,
-                    y,
-                    i,
-                    forceforward;
-
-    dest.x = 0;			/* to avoid warnings */
-    dest.y = 0;
+    struct Coords coords;
+    unsigned char x, y;
+    const unsigned char width = (unsigned char)level.w;
+    const unsigned char height = (unsigned char)level.h;
     play_music();
     /*
      * Firstly, update Robbo 
@@ -151,16 +138,14 @@ update_game(void)
        x*MAX_H+y stride was the dominant cost).  c == &board[x][y]; advancing x
        is just a constant pointer add. */
 #ifndef PROF_SKIP_SCAN
-    for (y = 0; y < level.h; y++) {	/* Thunor: I have swapped these around to process by rows */
+    for (y = 0; y < height; y++) {	/* Preserve the engine's row-first order. */
 	struct object *c;
-	unsigned char rc;
 #ifndef GR_NO_ROWSKIP
 	if (!gr_row_active[y])		/* GBC perf: skip rows with no active cell */
 	    continue;
 #endif
 	c = &board[0][y];
-	rc = 0;
-	for (x = 0; x < level.w; x++, c += MAX_H) {
+	for (x = 0; x < width; x++, c += MAX_H) {
 	    if (!c->inlist)             /* GBC perf: skip inert cells (one bit test) */
 		continue;
 
@@ -173,7 +158,9 @@ update_game(void)
 	     * at least their shooted/rotated/moved properties decremented
 	     * more than once for this cycle and they go out of sync
 	     */
-	    if (c->processed != cycle_count) {
+	    /* The stamp has always stored the low byte. Comparing the full int
+	       stops filtering moved-ahead objects after the first 255 ticks. */
+	    if (c->processed != (unsigned char)cycle_count) {
 		c->processed = cycle_count;
 
 		/*
@@ -194,9 +181,8 @@ update_game(void)
 		if (c->moved > 0)
 		    c->moved--;
 		if (c->moved <= 0) {
-		    check_object_if_blowed(x, y);	/* blow objects marked for blowing */
-
-		    set_coords(&coords, x, y);
+		    if (c->blowed)
+			check_object_if_blowed(x, y);
 
 			switch (c->type) {
 			case BEAR: case BEAR_B:
@@ -214,22 +200,14 @@ update_game(void)
 			default: break;
 			}
 		}
-			if (!gr_act_type[c->type] && c->moved == 0 && !c->blowed)
+			if (c->inlist && !gr_act_type[c->type] && c->moved == 0 && !c->blowed) {
 			    c->inlist = 0;
+			    --gr_row_active[y];
+			}
 	    }			/* .processed check */
 	}
-	/* Recompute the row's active count from TRUTH by re-scanning all cells'
-	   inlist.  An object that moved WEST activated a cell the forward scan
-	   already passed; counting during the scan would miss it and overwrite
-	   the SET_MOVED bump, freezing the object (e.g. west-facing bears). */
-	{
-	    struct object *cc = &board[0][y];
-	    rc = 0;
-	    for (x = 0; x < level.w; x++, cc += MAX_H)
-		if (cc->inlist)
-		    rc++;
-	}
-	gr_row_active[y] = rc;
+        /* Activations and retirements maintain the exact count, including
+           moves WEST into cells already passed. No second scan is needed. */
     }
 #endif /* PROF_SKIP_SCAN */
 }
@@ -563,7 +541,6 @@ move_object(int x, int y, struct Coords coords)
     board[x1][y1].processed = board[x][y].processed;
     board[x1][y1].redraw = TRUE;
 
-    set_images(board[x1][y1].type, x1, y1);
     clear_field(x, y);
 
 }
@@ -634,6 +611,9 @@ shoot_object(int x, int y, int direction)
 	break;
     case LASER_D:
     case LASER_L:
+	break;
+    default:
+	play_sound(SFX_KNOCK, in_viewport(x, y) ? SND_NORM : SND_QUIET);
 	break;
     }
 }
@@ -751,8 +731,15 @@ redraw_field(int x, int y)
 void
 clear_field(int x, int y)
 {
-    create_object(x, y, EMPTY_FIELD);
-    board[x][y].id_questionmark = 0;
+    struct object *c = &board[x][y];
+    /* Moving objects clear their old cell on every step. An empty cell has
+       one fixed layout; avoid the generic creator's type switch and separate
+       read/modify/write for every packed flag. */
+    if (c->inlist) --gr_row_active[y];
+    memset(c, 0, sizeof(*c));
+    c->blowable = 1;
+    c->redraw = 1;
+    c->processed = (unsigned char)cycle_count;
 }
 
 /***************************************************************************
@@ -773,7 +760,6 @@ clear_field(int x, int y)
 void
 create_object(int x, int y, int type)
 {
-    int             count;
 
 #ifdef DEBUG_INSPECT_OBJECT_CONTENTS
     if (board[x][y].icon[0].x != 0) {
@@ -829,7 +815,8 @@ create_object(int x, int y, int type)
     board[x][y].killing = 0;
     board[x][y].moved = 0;
     board[x][y].blowed = 0;
-    board[x][y].inlist = 0;	/* GBC perf: re-seeded below for active types */
+    if (board[x][y].inlist) --gr_row_active[y];
+    board[x][y].inlist = 0;	/* Re-seeded below for active types. */
     board[x][y].shooted = 0;
     board[x][y].rotated = 0;
     board[x][y].solidlaser = 0;
@@ -846,7 +833,6 @@ create_object(int x, int y, int type)
     board[x][y].shooting = 0;
     board[x][y].processed = cycle_count;
     board[x][y].redraw = TRUE;
-    (void)count;   /* GBC port: icon[] removed; clear loop below disabled */
 #if 0
     for (count = 0; count < MAX_ICONS; count++) {
 	board[x][y].icon[count].x = 0;
@@ -894,15 +880,13 @@ create_object(int x, int y, int type)
 
     }
 
-    set_images(board[x][y].type, x, y);
-
     /* GBC perf: seed the active set - a freshly created object with per-cycle
        behaviour must be visited by update_game.  Inert cells (walls/empty/
        items) start out of the list and are only added when SET_MOVED/SET_BLOWED
        gives them a pending action. */
     if (gr_act_type[board[x][y].type]) {
 	board[x][y].inlist = 1;
-	gr_row_active[y]++;		/* wake this row (recompute corrects any overcount) */
+	gr_row_active[y]++;
     }
 
 }
@@ -994,8 +978,8 @@ init_robbo(void)
 
 /* (Re)activate a cell and set its move/blow delay.  Out-of-line (called from the
    banked modules) so the many SET_MOVED/SET_BLOWED sites stay compact.  The
-   inlist 0->1 transition bumps the row's active count; update_game recomputes
-   the exact count when it scans the row, so this only needs to never undercount. */
+   inlist 0->1 transition bumps the row's exact active count. create_object
+   and update_game balance it whenever a cell leaves the active set. */
 void gr_set_moved(int x, int y, int v) {
     board[x][y].moved = (unsigned char)v;
     if (!board[x][y].inlist) { board[x][y].inlist = 1; gr_row_active[y]++; }
@@ -1010,12 +994,6 @@ clear_entire_board(void)
 {
     int             xpos,
                     ypos;
-
-    /* GBC perf: reset per-row active counts; the create_object active-seed
-       (via clear_field->create_object below, then load_level_data) rebuilds
-       them as objects are placed. */
-    for (ypos = 0; ypos < MAX_H; ypos++)
-	gr_row_active[ypos] = 0;
 
     /*
      * Fill the game board with EMPTY_FIELD objects

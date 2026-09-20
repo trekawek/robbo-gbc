@@ -53,7 +53,7 @@ void erase_mt(unsigned char col, unsigned char row) __banked {
 }
 
 void ewait(unsigned char frames) __banked {
-    while (frames--) { wait_vbl_done(); snd_update(); }
+    while (frames--) wait_vbl_done();
 }
 
 /* Atari ending sound indices (TITLE.ASM CONGR SOUND_ calls) -> port snd_play. */
@@ -197,6 +197,6 @@ void ending_gr_show(void) __banked {
     etext_c(12, "VALUABLE TO EARTH");
     etext_c(15, "PRESS START");
     /* PRESS START stays on screen until pressed */
-    while (1) { wait_vbl_done(); snd_update(); if (joypad() & J_START) break; }
+    while (1) { wait_vbl_done(); if (joypad() & J_START) break; }
     waitpadup();
 }

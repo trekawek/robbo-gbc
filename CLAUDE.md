@@ -97,10 +97,16 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
 - Cells: `board[MAX_W=16][MAX_H=31]` struct array, indexed `[x][y]`. Plain `[x][y]` —
   the row-pointer-table experiment was tried and fully reverted.
 - `update_game` scans cells each tick. Perf shortcuts: `inlist` bit marks active cells;
-  `gr_row_active[y]` lets whole inert rows be skipped. The `y`-then-`x` scan order is
-  load-bearing — don't reorder.
-- Timing: GBC double-speed (`cpu_fast`), `GR_TICK_GATE=3`, object delays scaled by
-  `GR_DELAY_DIV=2` via `SCALE()` (gnu tuned for 25 Hz; GBC reaches ~8 cycles/s).
+  `gr_row_active[y]` is an exact count maintained on every activation/retirement,
+  including creation, clearing, and moves into already visited cells. Do not
+  reset counts before clearing the board or decrement an already inactive cell.
+  The `y`-then-`x` scan order is load-bearing — don't reorder.
+- `processed` stores only the low byte of unsigned `cycle_count`; comparisons
+  must cast the counter to a byte too, including after tick 255.
+- Timing: GBC double-speed (`cpu_fast`), `GR_TICK_GATE=3` elapsed VBlanks between
+  update starts, and object delays scaled by `GR_DELAY_DIV=2` via `SCALE()`.
+  Frames spent doing logic/render count toward the gate; overruns never queue
+  catch-up ticks. Reset the atomic frame clock after menus and level loads.
 - Main starts rendering after VBlank; logic (`update_game`) sets redraw flags, then
   `show_game_area` flushes dirtied cells using GBDK's VRAM-safe tile routines. Large redraws
   can extend into active display. The camera eases independently in a small VBlank handler;
@@ -157,12 +163,30 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
 
 ## Sound
 
+See `docs/sound-audit.md` for all 15 effects and validation commands. `snd_init`
+installs a HOME VBlank wrapper that saves/restores the ROM bank and runs the
+banked player on the original four-PAL-frame cadence. `snd_play` queues one of
+four Atari logical voices (0/1/2, and shared 3 for all other IDs); `snd_stop`
+clears all voices. `snd_update` is now a compatibility no-op. Public mutations
+are critical sections. CH1 handles square tones, CH3 volume-scaled poly4 waves,
+and CH4 the loudest noise voice. Walking is silent; impacts use `SFX_KNOCK`.
+
 `play_sound` (glue.c) drops `SND_QUIET` events: the engine emits world sounds as
 `SND_NORM` only when `in_viewport()`, and `render.c`'s `set_sound_viewport()` keeps
 `in_viewport` aligned to the real GBC camera window. This kills the constant off-screen
 gun/bird crackle. Robbo's own actions always pass `SND_NORM`.
 
-## Performance (Level 51 — the slow one)
+## Performance
+
+See `docs/performance.md` and `tools/PerformanceTest.java`. The current engine
+removes the second active-row scan, expensive per-dirty-cell division, generic
+object creation when clearing a cell, and leftover work from the handler split.
+Level 4 improved from 8.3 to 16.4 updates/second, with identical per-tick behavior
+in the first 128 updates. Camera, sound, and ambient animation use VBlank time.
+Measure emulated time, not host emulator throughput; compare board traces per
+logical tick and assert row counts before accepting further optimizations.
+
+### Earlier level-51 optimization
 
 - Profiled ~22% render / ~78% logic. Render cost of barriers is wasted: barriers draw
   state-independently (no BARRIER case in `cell_glyph`), so re-uploading them every pulse
@@ -186,6 +210,7 @@ Minimum levels covering all tile/behaviour types ≥2× (excluding L12, which is
 
 - Atari level conversion: complete and validated; default build.
 - `[additional]` behaviour flags: now functional after the SDCC bitfield fix.
-- L51 perf: the +13% safe win is shipped; no pending perf work.
+- Performance: multi-level optimization and elapsed-frame pacing are complete;
+  see `docs/performance.md` for measurements and regression commands.
 - The emulator-level auto-solver (`Solver.java`) was a shelved experiment (0/56 — the level
   set is Sokoban-hard); it is not part of the product.

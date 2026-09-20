@@ -121,8 +121,9 @@ static unsigned char cell_pal(unsigned char t) {
     }
 }
 
-static void cell_tiles(unsigned char cx, unsigned char cy, unsigned char *tt, unsigned char *aa) {
-    unsigned char t = board[cx][cy].type;
+static void cell_tiles(const struct object *p, unsigned char cx, unsigned char cy,
+                       unsigned char *tt, unsigned char *aa) {
+    unsigned char t = p->type;
     unsigned char base, pal;
     if (cx == (unsigned char)robbo.x && cy == (unsigned char)robbo.y
         && t == EMPTY_FIELD && restart_timeout == 0) {
@@ -134,32 +135,31 @@ static void cell_tiles(unsigned char cx, unsigned char cy, unsigned char *tt, un
            without this check he'd be redrawn over the explosion.  Keying on the
            board type + restart_timeout (not robbo.alive, which reads stale here)
            means he explodes with the rest of the level. */
-        tt[0]=ROBBO_TL; tt[1]=ROBBO_TL|1; tt[2]=ROBBO_BL; tt[3]=ROBBO_BL|1;
-        aa[0]=aa[1]=aa[2]=aa[3]=0;   /* robbo uses the level's normal palette */
-        return;
-    }
-    if (t == WALL) {
+        base = ROBBO_TL;
+        pal = 0;                /* Robbo uses the level's normal palette. */
+    } else if (t == WALL) {
         base = 0;                                    /* wall glyph 0 (wall_chars) */
         /* The Atari `┼` black inner-cave fill loads as WALL state 3 (BLACK_WALL);
            render it as solid COLBK via PAL_BLACKFILL (all 4 entries = COLBK).
            Every other wall uses the inverse (blue/brick) palette. */
-        pal = (board[cx][cy].state == 3) ? PAL_BLACKFILL : 1;
+        pal = (p->state == 3) ? PAL_BLACKFILL : 1;
     } else {
         /* Atari colour model: a cell uses the level's normal (0) or inverse (1)
            palette purely by the glyph's inverse bit - no semantic per-type tint. */
-        unsigned char sc = LOOK[cell_glyph(t, board[cx][cy].state, board[cx][cy].direction)];
+        unsigned char sc = LOOK[cell_glyph(t, p->state, p->direction)];
         base = sc & 0x7F;
         pal = (sc & 0x80) ? 1 : 0;
     }
-    tt[0]=base; tt[1]=base|1; tt[2]=base|0x20; tt[3]=base|0x21;
-    aa[0]=aa[1]=aa[2]=aa[3]=pal;
+    *tt++ = base; *tt++ = base|1; *tt++ = base|0x20; *tt = base|0x21;
+    *aa++ = pal; *aa++ = pal; *aa++ = pal; *aa = pal;
 }
 
 static void write_row(unsigned char r) {
     unsigned char tbuf[64], abuf[64], cx, t[4], a[4];
     unsigned char my = (unsigned char)((r & 15) * 2);
-    for (cx = 0; cx < (unsigned char)level.w; cx++) {
-        cell_tiles(cx, r, t, a);
+    const struct object *p = &board[0][r];
+    for (cx = 0; cx < (unsigned char)level.w; cx++, p += MAX_H) {
+        cell_tiles(p, cx, r, t, a);
         tbuf[cx*2]=t[0]; tbuf[cx*2+1]=t[1];
         tbuf[32+cx*2]=t[2]; tbuf[32+cx*2+1]=t[3];
         abuf[cx*2]=a[0]; abuf[cx*2+1]=a[1];
@@ -341,13 +341,26 @@ void render_gr_camera(void) {
 
 /* Ambient twinkle: cycle the 2-frame animated object tiles (screws/teleports/
    etc.) in their fixed tile slots, spread across frames to avoid VBlank overrun.
-   Call once per frame.  Mirrors the original FNT animation. */
+   Call once per main-loop iteration; use elapsed display frames so busy game
+   ticks do not slow the animation.  Mirrors the original FNT animation. */
 void render_gr_anim(void) {
-    static unsigned char ctr, frame, batch;
+    static unsigned char started, frame, batch;
+    static unsigned int last_flip;
+    unsigned int now;
     unsigned char i, start, end;
-    if (++ctr >= 16) { ctr = 0; frame ^= 1; batch = 0; }  /* flip frame every 16 */
+    __critical { now = sys_time; }
+    if (!started) { started = 1; last_flip = now; }
     start = (unsigned char)(batch * 6);
-    if (start >= ANIM_NCHARS) return;
+    if (start >= ANIM_NCHARS) {
+        if ((unsigned int)(now - last_flip) < 16) return;
+        /* Finish all uploads before starting a new frame, even if a busy room
+           needed more than 16 VBlanks.  Discard missed flips instead of letting
+           repeated restarts starve the last tile batches. */
+        frame ^= 1;
+        last_flip = now;
+        batch = 0;
+        start = 0;
+    }
     end = (unsigned char)(start + 6);
     if (end > ANIM_NCHARS) end = ANIM_NCHARS;
     SWITCH_ROM(GFX_BANK);
@@ -359,21 +372,21 @@ void render_gr_anim(void) {
 }
 
 /* show_game_area: repaint board cells whose redraw flag is set, then robbo.
-   Scans the board linearly via a pointer (no per-cell x*MAX_H+y multiply on
-   the GB's software multiplier); x/y are only derived for the few dirty cells. */
+   Walk the board in its existing linear order, tracking byte-sized x/y instead
+   of dividing a linear index by MAX_H for every dirty cell.  Pass the current
+   object directly to cell_tiles so it need not calculate its address again. */
 int show_game_area(void) {
-    unsigned int i;
     struct object *p = &board[0][0];
     unsigned char t[4], a[4], x, y;
-    for (i = 0; i < (unsigned int)MAX_W * MAX_H; i++, p++) {
-        if (!p->redraw) continue;
-        p->redraw = 0;
-        y = (unsigned char)(i % MAX_H);
-        if (slot_owner[y & 15] != y) continue;
-        x = (unsigned char)(i / MAX_H);
-        cell_tiles(x, y, t, a);     /* cell_tiles() renders robbo on his own cell too */
-        set_bkg_tiles(x*2, (y & 15)*2, 2, 2, t);
-        set_bkg_attributes(x*2, (y & 15)*2, 2, 2, a);
+    for (x = 0; x < MAX_W; x++) {
+        for (y = 0; y < MAX_H; y++, p++) {
+            if (!p->redraw) continue;
+            p->redraw = 0;
+            if (slot_owner[y & 15] != y) continue;
+            cell_tiles(p, x, y, t, a); /* Robbo's cell uses this same paint path. */
+            set_bkg_tiles(x*2, (y & 15)*2, 2, 2, t);
+            set_bkg_attributes(x*2, (y & 15)*2, 2, 2, a);
+        }
     }
     return 0;
 }

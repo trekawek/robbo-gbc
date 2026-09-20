@@ -20,11 +20,11 @@ enum {
     SND_MAGNET   = 14   /* przyciaganie - magnet pull        */
 };
 
-/* GBC port: sound.c is a switchable-bank module, so every entry point is
-   __banked (a non-__banked function in a bank silently corrupts memory). */
+/* Banked public API. snd_init installs the independent PAL-paced VBlank
+   player; snd_play queues an effect on its original Atari logical voice. */
 void snd_init(void) __banked;
 void snd_play(unsigned char id) __banked;
-void snd_update(void) __banked;   /* advance the active effect; call once per frame */
-void snd_stop(void) __banked;     /* silence and cancel the active effect */
+void snd_update(void) __banked;   /* compatibility no-op: VBlank advances effects */
+void snd_stop(void) __banked;     /* silence and cancel all effects */
 
 #endif

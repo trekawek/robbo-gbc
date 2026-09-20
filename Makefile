@@ -44,7 +44,7 @@ OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS))) \
 # every object includes one or more generated headers (below: order-only dep)
 GENHDRS := $(GFXH) $(SOUNDH) $(INSTRH) $(SRCDIR)/levels_data.h
 
-.PHONY: all clean
+.PHONY: all clean sound-test
 all: $(ROM)
 
 # make the generated headers exist before any compile (order-only: regenerating
@@ -58,7 +58,7 @@ $(BUILD):
 $(GFX) $(GFXH): tools/convert_font.py tools/sim_logo.py
 	$(PY) tools/convert_font.py "$(ORIG)" $(GENDIR)
 
-$(SOUNDH): tools/convert_sound.py
+$(SOUNDH): tools/convert_sound.py $(ORIG)/d1/R1.ASM
 	$(PY) tools/convert_sound.py "$(ORIG)" $(GENDIR)
 
 $(INSTRH): tools/extract_instr.py
@@ -88,6 +88,14 @@ $(BUILD)/gfx_tiles.o: $(GFX) | $(BUILD)
 $(BUILD)/render.o: $(GFXH)
 $(BUILD)/menu.o:   $(INSTRH)
 $(BUILD)/sound.o:  $(SOUNDH)
+$(BUILD)/sound.o $(BUILD)/glue.o $(BUILD)/menu.o $(BUILD)/ending.o: $(SRCDIR)/sound.h
+
+# Isolated production sound player, with symbol-driven emulator control.
+$(BUILD)/sound-test.gbc: tools/sound_test.c tools/sound_test_bank.c $(BUILD)/sound.o | $(BUILD)
+	$(LCC) $(LINKFLAGS) -Wl-j -o $@ tools/sound_test.c tools/sound_test_bank.c $(BUILD)/sound.o
+
+sound-test: $(BUILD)/sound-test.gbc
+	java --class-path "$(SOUND_TEST_CP)" tools/SoundTest.java $< $(BUILD)/sound-captures "$(ORIG)/d1/R1.ASM"
 
 $(ROM): $(OBJS)
 	$(LCC) $(LINKFLAGS) -o $@ $(OBJS)

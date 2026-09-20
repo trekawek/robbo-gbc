@@ -198,11 +198,8 @@ move_robbo(int x, int y) __banked
     robbo.x = x_tmp;
     robbo.y = y_tmp;
 
-    if (robbo.moved == 0) {
+    if (robbo.moved == 0)
 	robbo.moved = DELAY_ROBBO;	/* delay robbo */
-	if(!robbo.blocked)
-    		play_sound(SFX_ROBBO, SND_NORM);
-}
 
 }
 
@@ -274,6 +271,9 @@ shoot_robbo(int x, int y) __banked
 
 	SET_MOVED(x_tmp, y_tmp, DELAY_LASER);
 	board[x_tmp][y_tmp].direction = robbo.direction / 2;
+	break;
+    default:
+	play_sound(SFX_KNOCK, SND_NORM);
 	break;
     }
 }

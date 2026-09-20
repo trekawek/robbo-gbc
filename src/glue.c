@@ -6,7 +6,7 @@
 
 /* PROF: profiling bitmask - skip components to measure their per-cycle cost via
    Perf (cycle rate).  0 = normal build.  1=update_game 2=show_game_area+hud
-   4=render_gr_anim 8=snd_update 16=render_gr_camera */
+   4=render_gr_anim 16=render_gr_camera */
 #ifndef PROF
 #define PROF 0
 #endif
@@ -41,7 +41,7 @@ void my_srand(unsigned int seed) { if (seed) rng = seed; }
 int abs(int v) { return v < 0 ? -v : v; }
 
 /* ---- sound: bridge gnu-robbo SFX_* events to the GB sound engine ---- */
-static const unsigned char SFX2SND[16] = {
+static const unsigned char SFX2SND[] = {
     0xFF,         /* 0  unused      */
     SND_AMMO,     /* 1  SFX_BULLET (ammo pickup) */
     SND_SCREW,    /* 2  SFX_SCREW    */
@@ -53,11 +53,12 @@ static const unsigned char SFX2SND[16] = {
     SND_SHOOT,    /* 8  SFX_SHOOT    */
     SND_SHOOT,    /* 9  SFX_BIRD     */
     SND_TELEPORT, /* 10 SFX_TELEPORT */
-    SND_KNOCK,    /* 11 SFX_ROBBO (footstep) */
+    0xFF,         /* 11 SFX_ROBBO: walking is silent on Atari */
     SND_WIN,      /* 12 SFX_CAPSULE (level done) */
     SND_DESTROY,  /* 13 SFX_KILL     */
     SND_MAGNET,   /* 14 SFX_MAGNET   */
     SND_CAPSULE,  /* 15 SFX_EXIT_OPEN */
+    SND_KNOCK,    /* 16 SFX_KNOCK (bullet/laser hits a wall) */
 };
 void play_sound(int event, int vol) {
     /* The engine emits world-event sounds (gun/bird/bomb/kill/box) as SND_NORM
@@ -66,7 +67,7 @@ void play_sound(int event, int vol) {
        off-screen ones - otherwise distant guns/birds fire a constant, sourceless
        crackle.  Robbo's own actions always pass SND_NORM (he's always on screen). */
     if (vol == SND_QUIET) return;
-    if (event > 0 && event < 16 && SFX2SND[event] != 0xFF)
+    if (event > 0 && event < sizeof(SFX2SND) && SFX2SND[event] != 0xFF)
         snd_play(SFX2SND[event]);
 }
 
@@ -77,6 +78,7 @@ void save_resource_file(char *path, int arg) { (void)path; (void)arg; }
 void manage_game_on_input(int actionid) { (void)actionid; }
 
 static void start_level(void) {
+    snd_stop();
     DISPLAY_OFF;
     level_init();
     render_gr_load();
@@ -84,10 +86,20 @@ static void start_level(void) {
     WX_REG = 7; WY_REG = 128;      /* HUD window: bottom 2 rows */
     SHOW_WIN;
     DISPLAY_ON;
+    snd_play(SND_ENTER);          /* Atari WFAC: Robbo appears */
+}
+
+/* sys_time is updated by the VBlank interrupt.  Read both bytes together so
+   crossing a 256-frame boundary cannot look like a long stall. */
+static unsigned int frame_clock(void) {
+    unsigned int frame;
+    __critical { frame = sys_time; }
+    return frame;
 }
 
 void main(void) {
-    unsigned char keys, prev = 0, pstart = 0, tick = 0, need_render = 1, last_screws = 0;
+    unsigned char keys, prev = 0, pstart = 0, need_render = 1, last_screws = 0;
+    unsigned int last_tick_frame, frame;
     int last_sel;
 
     if (_cpu == CGB_TYPE) cpu_fast();   /* CGB double-speed */
@@ -123,6 +135,7 @@ void main(void) {
 
     start_level();
     last_sel = level_packs[0].level_selected;
+    last_tick_frame = frame_clock();
 
     while (1) {
         wait_vbl_done();
@@ -142,7 +155,8 @@ void main(void) {
             DISPLAY_OFF; hud_gr_init(); WX_REG = 7; WY_REG = 128; SHOW_WIN; DISPLAY_ON;
             last_sel = level_packs[0].level_selected;
             last_screws = (unsigned char)robbo.screws;
-            need_render = 1; tick = 0; prev = pstart = 0;
+            need_render = 1; prev = pstart = 0;
+            last_tick_frame = frame_clock();
             continue;
         }
 
@@ -170,10 +184,6 @@ void main(void) {
 #endif
         render_gr_robbo();     /* overlay robbo LAST so row streaming can't erase him */
         /* --- end VBlank-sensitive work --- */
-#if !(PROF & 8)
-        snd_update();          /* advance the active sound effect (uses sys_time) */
-#endif
-
         /* START -> pause menu, checked EVERY frame (its own edge tracking) so the
            press isn't swallowed by the tick gate's per-frame prev update. */
         keys = joypad();
@@ -204,14 +214,21 @@ void main(void) {
             last_sel = level_packs[0].level_selected;
             last_screws = (unsigned char)robbo.screws;
             need_render = 1;
-            tick = 0;
+            last_tick_frame = frame_clock();
             prev = pstart = keys;
             continue;
         }
         pstart = keys;
 
-        if (++tick < GR_TICK_GATE) { prev = keys; continue; }
-        tick = 0;
+        /* Count real display frames, including time spent updating objects and
+           painting dirty cells.  Start at most one tick here and discard any
+           overdue ticks, so a busy room or menu cannot cause a catch-up burst. */
+        frame = frame_clock();
+        if ((unsigned int)(frame - last_tick_frame) < GR_TICK_GATE) {
+            prev = keys;
+            continue;
+        }
+        last_tick_frame = frame;
 
         if (game_mode == GAME_ON) {
             /* input: A held + dir = shoot, else dir = move (edge-triggered for
@@ -242,6 +259,7 @@ void main(void) {
                 DISPLAY_OFF; render_gr_load(); DISPLAY_ON;
                 last_screws = (unsigned char)robbo.screws;
                 need_render = 1;
+                last_tick_frame = frame_clock();
             } else {
 #if !(PROF & 1)
                 update_game();     /* logic only: sets redraw flags, no VRAM writes */
@@ -262,6 +280,7 @@ void main(void) {
                     if (--restart_timeout == 0) {
                         start_level();
                         last_sel = level_packs[0].level_selected;
+                        last_tick_frame = frame_clock();
                     }
                 }
             }

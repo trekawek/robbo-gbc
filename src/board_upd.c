@@ -10,12 +10,8 @@
    (signals robbo died / stop this cycle). */
 int upd_g1(int x, int y) __banked
 {
-    int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
-    struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
-    (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
-    (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
-    dest.x = 0; dest.y = 0;
-    set_coords(&coords, x, y);
+    int forceforward;
+    struct Coords coords, coords_side_behind, coords_behind;
     switch (board[x][y].type) {
 		    case BEAR:
 		    case BEAR_B:
@@ -162,13 +158,11 @@ int upd_g1(int x, int y) __banked
    (signals robbo died / stop this cycle). */
 int upd_g2(int x, int y) __banked
 {
-    int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
+    int x_tmp, flag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i;
     int blo, bhi, bsolid;
-    struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
-    (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
-    (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
+    struct Coords dest;
+    /* A lone wrapping barrier can reach the flag branch without a move. */
     dest.x = 0; dest.y = 0;
-    set_coords(&coords, x, y);
     switch (board[x][y].type) {
 		    case BARRIER:
 			/* GBC perf: a SOLID barrier run (wall-to-wall, no gaps)
@@ -364,14 +358,11 @@ int upd_g2(int x, int y) __banked
    (signals robbo died / stop this cycle). */
 int upd_g3(int x, int y) __banked
 {
-    int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
-    struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
-    (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
-    (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
-    dest.x = 0; dest.y = 0;
-    set_coords(&coords, x, y);
+    int temp_state;
+    struct Coords coords, coords_temp;
     switch (board[x][y].type) {
 		    case BIRD:
+			set_coords(&coords, x, y);
 			if (can_move(coords, board[x][y].direction)) {
 			    update_coords(&coords, board[x][y].direction);
 			    move_object(x, y, coords);
@@ -401,6 +392,7 @@ int upd_g3(int x, int y) __banked
 						/* BUTTERFLY logic   */
 						/*********************/
 		    case BUTTERFLY:
+			set_coords(&coords, x, y);
 			if (can_move(coords, board[x][y].direction)) {
 			    update_coords(&coords, board[x][y].direction);
 			    move_object(x, y, coords);
@@ -530,15 +522,12 @@ int upd_g3(int x, int y) __banked
    (signals robbo died / stop this cycle). */
 int upd_g4(int x, int y) __banked
 {
-    int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
-    struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
-    (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
-    (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
-    dest.x = 0; dest.y = 0;
-    set_coords(&coords, x, y);
+    int temp_state, i;
+    struct Coords coords, coords_temp;
     switch (board[x][y].type) {
 		    case LASER_L:
 		    case LASER_D:
+			set_coords(&coords, x, y);
 			redraw_field(x, y);
 			update_coords(&coords, board[x][y].direction);
 			SET_MOVED(x, y, DELAY_LASER);
@@ -567,6 +556,7 @@ int upd_g4(int x, int y) __banked
 				    SET_BLOWED(coords.x, coords.y, 1);
 				    redraw_field(coords.x, coords.y);
 				} else {
+				    play_sound(SFX_KNOCK, in_viewport(x, y) ? SND_NORM : SND_QUIET);
 				    clear_field(x, y);	/* clear lasertrack */
 				    create_object(x, y, LITTLE_BOOM);
 				    SET_MOVED(x, y, DELAY_LITTLE_BOOM);
@@ -634,6 +624,8 @@ int upd_g4(int x, int y) __banked
 					      else
 						 play_sound(SFX_KILL,SND_QUIET);
 					  }
+					} else {
+					    play_sound(SFX_KNOCK, in_viewport(x, y) ? SND_NORM : SND_QUIET);
 					}
 				    }
 				    board[x][y].returnlaser = 1;
@@ -712,12 +704,8 @@ int upd_g4(int x, int y) __banked
    (signals robbo died / stop this cycle). */
 int upd_g5(int x, int y) __banked
 {
-    int x_tmp, flag, sflag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i, forceforward;
-    struct Coords coords, coords_temp, dest, coords_side_behind, coords_behind;
-    (void)x_tmp;(void)flag;(void)sflag;(void)temp_state;(void)temp_blowed;(void)temp_direction;(void)i;(void)forceforward;
-    (void)coords_temp;(void)dest;(void)coords_side_behind;(void)coords_behind;
-    dest.x = 0; dest.y = 0;
-    set_coords(&coords, x, y);
+    int sflag, temp_direction, i;
+    struct Coords coords, coords_temp;
     switch (board[x][y].type) {
 		    case PUSH_BOX:
 			if (board[x][y].state == 1) {	/* box is moving */
@@ -747,6 +735,7 @@ int upd_g5(int x, int y) __banked
 			i = 0;
 			if (robbo.blocked == 1)
 			    break;	/* *neurocyp we are already locked on a magnet we ignore other blocks */
+			set_coords(&coords, x, y);
 			   if (board[x][y].rotable) {	/* *neurocyp: we will not rotate, when we shoot */
 				if (board[x][y].rotated == 0) {
 				    temp_direction=rand() & 0x03;
@@ -846,10 +835,6 @@ int upd_g5(int x, int y) __banked
 			if (board[coords.x][coords.y].shooted == 0) {
 			    if (board[coords.x][coords.y].solidlaser == 2) {
 				if (((rand()) & 0x07) == 0) {	/* it's blaster */
-				    if (in_viewport(x, y))
-					play_sound(SFX_GUN, SND_NORM);
-				    else
-					play_sound(SFX_GUN,SND_QUIET);
 				    set_coords(&coords_temp, coords.x, coords.y);
 				    update_coords(&coords_temp, board[coords.x][coords. y].direction);
 				    if (robbo.x == coords_temp.x && robbo.y == coords_temp.y) {
@@ -892,10 +877,9 @@ int upd_g5(int x, int y) __banked
 				    /*
 				     * gun shoots 
 				     */
-				    if (in_viewport(x, y)) 
-					play_sound(SFX_GUN, SND_NORM);
-				    else
-					play_sound(SFX_GUN,SND_QUIET);
+				    /* Atari DZ1 fires audibly; DZ2 solid beams are silent. */
+				    if (board[coords.x][coords.y].solidlaser == 0)
+					play_sound(SFX_GUN, in_viewport(x, y) ? SND_NORM : SND_QUIET);
 				    shoot_object(coords.x, coords.y, board[coords.x][coords.y]. direction);
 				} else
 				    board[coords.x][coords.y].shooted = DELAY_LASER;
@@ -1160,5 +1144,3 @@ random_id(void) __banked
 	return ids[my_rand() % 11];
     }
 }
-
-
