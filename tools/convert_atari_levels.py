@@ -45,7 +45,7 @@ class Cell:
 def byte_to_cell(b):
     if b == 0xA0: return Cell('O')                     # solid (visible) wall
     if b == 0x13: return Cell('-')                     # black inner-cave fill -> BLACK_WALL
-                                                       # (rendered as solid COLBK, not a wall)
+                                                       # (glyph $42 is solid COLPF0)
     if b == 0x20: return Cell('.')                     # empty
     if b == 0x2A: return Cell('R')                     # robbo start
     if b == 0x21: return Cell("'")                     # ammo
@@ -90,7 +90,9 @@ def byte_to_cell(b):
         d2 = 2 if b == 0x0D else 0                     # crawls W (0x0D) / E (0x0E)
         return Cell('}', [3, d2, 0, 1, 0, 0])          # fire N, movable
     if b in (0x0F, 0x11): return Cell('=', [0])        # ZAPO force field -> barrier row
-    if b in (0x5C, 0x06, 0x05): return Cell('O')       # static walls (\ ╱ + ZAPEND)
+    if b == 0x5C: return Cell('O', [9])               # normal-palette wall glyph $00
+    if b == 0x06: return Cell('O', [10])              # normal-palette glyph $4E
+    if b == 0x05: return Cell('O')                    # inverse wall (ZAPEND)
     if b in (0x5B, 0x5D): return Cell('.')             # transient laser beam segment
     return Cell('.')                                   # unknown -> empty (logged)
 

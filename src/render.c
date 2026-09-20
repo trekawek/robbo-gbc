@@ -13,9 +13,10 @@ extern const unsigned char LOOK[128];
    (palette 1, used for walls).  Indexed by level-1.  See gr_atari_pal.c. */
 #include "levels_data.h"
 extern const unsigned int gr_atari_pal[GR_NLEVELS][8];
-extern const unsigned int gr_atari_colbk[GR_NLEVELS];   /* black inner-cave fill (┼) */
+extern const unsigned int gr_atari_hud[GR_NLEVELS][2];
+extern const unsigned int gr_atari_flash;
 BANKREF_EXTERN(gr_atari_pal)
-#define PAL_BLACKFILL 2    /* BG palette slot: solid COLBK, for BLACK_WALL cells */
+#define PAL_BLACKFILL 2    /* BG palette slot: solid COLPF0, for cave-fill cells */
 
 #define VIEW_W 160
 #define PLAYH  128                         /* visible playfield height (px) */
@@ -31,6 +32,8 @@ static int max_scx, max_scy;
    Only the VBlank handler advances them; main publishes targets atomically. */
 static volatile unsigned int camera_x, camera_y, camera_tx, camera_ty;
 static volatile unsigned char camera_active;
+static unsigned char flash_frames;
+static unsigned int floor_color, flash_color;
 static void set_sound_viewport(void);
 
 static unsigned int camera_ease(unsigned int cur, unsigned int tgt) {
@@ -42,11 +45,33 @@ static unsigned int camera_ease(unsigned int cur, unsigned int tgt) {
     return cur < tgt ? cur + step : cur - step;
 }
 
-/* Keep this handler in HOME, with no VRAM writes or banked/game-logic calls.
-   Busy game ticks may span several frames, but scrolling still runs at 60 Hz
-   and both scroll registers change together before the visible scanlines. */
+/* HOME only: no tile uploads or banked/game-logic calls. Scroll registers and
+   the two background-color entries change in VBlank, even during busy ticks. */
 void render_gr_vblank(void) {
+    unsigned int color = 0;
+    unsigned char index, change = 0;
     if (!camera_active) return;
+    if (level.now_is_blinking) {
+        level.now_is_blinking = 0;
+        /* Atari WYZA flashes COLB for three PAL frames (~60 ms). Four GBC
+           frames (~67 ms) are the nearest whole-frame duration. */
+        flash_frames = 4;
+        color = flash_color;
+        change = 1;
+    } else if (flash_frames && !--flash_frames) {
+        color = floor_color;
+        change = 1;
+    }
+    if (change) {
+        index = BCPS_REG;
+        BCPS_REG = 0x80;
+        BCPD_REG = (unsigned char)color;
+        BCPD_REG = (unsigned char)(color >> 8);
+        BCPS_REG = 0x88;
+        BCPD_REG = (unsigned char)color;
+        BCPD_REG = (unsigned char)(color >> 8);
+        BCPS_REG = index;
+    }
     camera_x = camera_ease(camera_x, camera_tx);
     camera_y = camera_ease(camera_y, camera_ty);
     SCX_REG = (unsigned char)(camera_x >> 4);
@@ -139,14 +164,17 @@ static void cell_tiles(const struct object *p, unsigned char cx, unsigned char c
         pal = 0;                /* Robbo uses the level's normal palette. */
     } else if (t == WALL) {
         base = 0;                                    /* wall glyph 0 (wall_chars) */
-        /* The Atari `┼` black inner-cave fill loads as WALL state 3 (BLACK_WALL);
-           render it as solid COLBK via PAL_BLACKFILL (all 4 entries = COLBK).
-           Every other wall uses the inverse (blue/brick) palette. */
+        /* `┼` maps to glyph $42, filled with pixel value 1 (COLPF0).
+           Atari also has normal-palette wall and crate-shaped wall glyphs. */
         pal = (p->state == 3) ? PAL_BLACKFILL : 1;
+        if (p->state == 9) pal = 0;
+        if (p->state == 10) { base = 0x4E; pal = 0; }
     } else {
         /* Atari colour model: a cell uses the level's normal (0) or inverse (1)
            palette purely by the glyph's inverse bit - no semantic per-type tint. */
         unsigned char sc = LOOK[cell_glyph(t, p->state, p->direction)];
+        if (t == BIRD && !p->shooting) sc &= 0x7F;  /* I..L, not shooting M/N */
+        if (t == GUN && p->movable) sc |= 0x80;     /* Atari moving guns $0D/$0E */
         base = sc & 0x7F;
         pal = (sc & 0x80) ? 1 : 0;
     }
@@ -258,20 +286,25 @@ void render_gr_load(void) {
        from (the authentic Atari colours, replacing the old semantic scheme). */
     unsigned char idx = level_packs[selected_pack].level_selected;
     camera_active = 0;       /* LCD is off; discard any previous level's motion */
+    flash_frames = 0;
     if (idx < 1) idx = 1;
     if (idx > GR_NLEVELS) idx = GR_NLEVELS;
     idx--;
     SWITCH_ROM(BANK(gr_atari_pal));        /* table lives in a switchable bank */
     for (i = 0; i < 8; i++) pal[i] = gr_atari_pal[idx][i];
+    floor_color = pal[0];
+    flash_color = gr_atari_flash;
     set_bkg_palette(0, 2, (const palette_color_t *)pal);   /* palettes 0 + 1 */
-    {   /* palette PAL_BLACKFILL = all COLBK, for the ┼ black inner-cave fill */
-        unsigned int bk = gr_atari_colbk[idx], bp[4];
+    {   /* The solid cave-fill glyph uses COLPF0, not the border/HUD COLBK. */
+        unsigned int bk = pal[1], bp[4];
         bp[0] = bp[1] = bp[2] = bp[3] = bk;
         set_bkg_palette(PAL_BLACKFILL, 1, (const palette_color_t *)bp);
     }
-    /* HUD bar keeps its own palette 6 (black bg, white digits). */
+    /* DLI2's ANTIC-2 colors: COLBK background, same hue at luminance $A. */
     {
-        static const unsigned int hudpal[4] = {0x0000,0x7FFF,0x167A,0x7FFF};
+        unsigned int bg = gr_atari_hud[idx][0], hudpal[4];
+        hudpal[0] = hudpal[1] = hudpal[2] = bg;
+        hudpal[3] = gr_atari_hud[idx][1];
         set_bkg_palette(6, 1, (const palette_color_t *)hudpal);
     }
     SWITCH_ROM(GFX_BANK);

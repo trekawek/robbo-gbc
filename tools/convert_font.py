@@ -51,6 +51,8 @@ def mono_tile(ch):
 # 3=COLPF2 bright) with the 3D brick bevel carved by the diagonal MASK.  We
 # scale it 2x horizontally / 3x vertically into 14x3 = 42 GBC 8x8 tiles.
 import sim_logo
+from gen_atari_pal import load_palette, bgr555
+PAL_COLORS = load_palette(os.path.join(os.path.dirname(__file__), "atari_pal_palette.txt"))
 LOGO_SX, LOGO_SY = 2, 3                                # logical-pixel -> GBC scale
 
 def logo_tiles_from_sim(orig):
@@ -77,9 +79,8 @@ def logo_tiles_from_sim(orig):
     return tiles, tw, th                               # row-major tiles + dims
 
 def atari_to_bgr555(c):
-    """Atari colour byte -> GBC BGR555 (matches render.c's RGB888 path)."""
-    r, g, b = sim_logo.atari_rgb(c)
-    return (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10)
+    """Use the same native PAL reference and quantization as the level palettes."""
+    return bgr555(PAL_COLORS[c & 0xFE])
 
 def logo_rainbow():
     """One 4-colour GBC palette per hue step, cycling all 15 Atari hues for the

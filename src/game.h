@@ -79,7 +79,7 @@ void save_resource_file(char *path, int arg);
 GR_GLOBAL struct {
     int w;
     int h;
-    int now_is_blinking;	/* >0 blinks the background white after exit opens */
+    volatile int now_is_blinking; /* pending Atari COLB flash when the exit opens */
     Uint32 colour;		/* level background colour (BGR not yet) */
 } level;
 

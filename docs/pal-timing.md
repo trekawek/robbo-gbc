@@ -12,7 +12,7 @@ it with 7, then increments `CNTR`. The PAL reference clock is 1,773,447 Hz with
 114 clocks per line and 312 lines per frame: 49.860746 frames/s. Held movement,
 monsters, projectiles and barriers normally advance once per board scan.
 
-This was also checked in Atari800 4.2.0, running the original `bin/robbo.xex`
+This was also checked in Atari800 5.2.0, running the original `bin/robbo.xex`
 in PAL mode. A breakpoint immediately after `INC CNTR` showed 124 update
 intervals across levels 1, 4, 5 and 8, all exactly seven `RTCLOK` frames.
 For this source build the monitor breakpoint is `bpc 1f58`; `m 12` reads the

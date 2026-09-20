@@ -10,7 +10,7 @@ ROM    := $(BUILD)/robbo.gbc
 # Assets converted at build time: the Atari original supplies the font, sound
 # tables, instruction text AND the authentic level designs (d2/C*.txt, converted
 # to the engine's level format by tools/convert_atari_levels.py).  GNU Robbo's
-# original.dat is used only for the engine's game logic + per-level colours.
+# original.dat supplies legacy colour fields; Atari metadata sets the GBC palette.
 ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
 GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
 
@@ -55,7 +55,7 @@ $(BUILD):
 	@mkdir -p $(BUILD)
 
 # --- asset generation ---
-$(GFX) $(GFXH): tools/convert_font.py tools/sim_logo.py
+$(GFX) $(GFXH): tools/convert_font.py tools/sim_logo.py tools/gen_atari_pal.py tools/atari_pal_palette.txt
 	$(PY) tools/convert_font.py "$(ORIG)" $(GENDIR)
 
 $(SOUNDH): tools/convert_sound.py $(ORIG)/d1/R1.ASM
@@ -64,8 +64,12 @@ $(SOUNDH): tools/convert_sound.py $(ORIG)/d1/R1.ASM
 $(INSTRH): tools/extract_instr.py
 	$(PY) tools/extract_instr.py "$(ORIG)" $(GENDIR)
 
+$(SRCDIR)/atari_pal.c: tools/gen_atari_pal.py tools/atari_pal_palette.txt $(wildcard $(ORIG)/d2/C[123].txt)
+	$(PY) tools/gen_atari_pal.py "$(ORIG)/d2" > $@.tmp
+	mv $@.tmp $@
+
 # authentic Atari level designs -> engine .dat (gnu file supplies per-level colour)
-$(ATARIDAT): tools/convert_atari_levels.py
+$(ATARIDAT): tools/convert_atari_levels.py $(wildcard $(ORIG)/d2/C[123].txt) $(GNUROBBO)/data/levels/original.dat
 	$(PY) tools/convert_atari_levels.py "$(ORIG)/d2" "$(GNUROBBO)/data/levels/original.dat" $(ATARIDAT) 56
 
 $(LEVELS) $(SRCDIR)/levels_data.h: tools/convert_gnu_levels.py $(ATARIDAT)

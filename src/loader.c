@@ -150,6 +150,10 @@ int load_level_data(int level_number)
         int v0 = rec[4], v1 = rec[5], v2 = rec[6], v3 = rec[7], v4 = rec[8], v5 = rec[9];
         if (rx < 0 || rx >= MAX_W || ry < 0 || ry >= MAX_H) continue;
         switch (transform_char((char)rec[2])) {
+        case WALL:
+            /* Atari-only presentation variants; collision stays WALL. */
+            if (v0 == 9 || v0 == 10) board[rx][ry].state = v0;
+            break;
         case LASER_L:
         case LASER_D:
             board[rx][ry].direction = v0;

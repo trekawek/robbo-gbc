@@ -17,7 +17,7 @@ using **teleports**, dodging **bombs**, **lasers** and **magnets**, and avoiding
 **monsters** (bears, birds, butterflies). Touch a monster, a bomb blast or a wall you're forced
 into and the room explodes; you respawn and try again.
 
-- **Levels:** the 56 rooms of GNU Robbo's `original.dat` (the Atari set).
+- **Levels:** all 56 rooms converted from the original Atari level data.
 - **Logic:** GNU Robbo's `board.c` engine — objects, monsters, explosions, teleports, magnets,
   guns/blasters, doors and the screw→capsule exit all behave exactly as upstream.
 - **Look:** the original Atari **font** (16×16 metatiles from ANTIC mode-4 chars) and the
@@ -73,6 +73,10 @@ All 15 sound effects can be recorded and checked against the Atari tables with
 `make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its
 dependency JARs). See [the sound audit](docs/sound-audit.md) for the comparison,
 remaining hardware approximations, and reference-audio generation.
+
+The [PAL colour audit](docs/pal-colors.md) compares all 56 rooms with the original
+running in Atari800, including normal/inverse glyphs, cave fill and the HUD.
+It includes commands for native reference captures and a full-board GBC regression.
 
 [Performance measurements](docs/performance.md) cover ten representative rooms,
 including level 4, with a symbol-driven Coffee GB benchmark and per-tick board

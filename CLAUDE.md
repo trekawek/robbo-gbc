@@ -147,11 +147,21 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   bytes bluer/darker). The colour registers are the d2/C*.txt `metadata:` bytes:
   `byte2..7 = COLPF0,COLPF1,COLPF2,COLPF3,COLBK,COLB`. Index mapping (verified against the
   emulator): `pal0 = [COLB, COLPF0, COLPF1, COLPF2]`, `pal1 = [COLB, COLPF0, COLPF1, COLPF3]`
-  (idx0 = the value-0 floor/background = COLB, NOT COLBK); `gr_atari_colbk[]` = COLBK for the
-  `┼` black fill. The byte→RGB table (`tools/atari_pal_palette.txt`) was extracted once with a
-  colour-chart ROM run under `atari800 -pal` (Xvfb + ffmpeg x11grab, sample band centres);
-  RGB→BGR555 = `(r>>3)|((g>>3)<<5)|((b>>3)<<10)`.  NOTE: atari800's *generated* PAL palette
-  is standard-atari800, which differs from Atari800MacX's default — we track standard atari800.
+  (idx0 = the value-0 floor/background = COLB, NOT COLBK). The `┼` glyph is solid pixel
+  value 1, so fill palette 2 uses COLPF0. `gr_atari_hud` uses COLBK and its hue at
+  luminance $A. The full byte→RGB table (`tools/atari_pal_palette.txt`) comes directly
+  from native indexed Atari800 5.2.0 screenshots, using its standard PAL preset and
+  a fresh config. GTIA ignores bit 0. Each RGB channel is rounded with
+  `(v*31+127)/255`, then packed as BGR555; the title rainbow uses the same table.
+  See `docs/pal-colors.md` for reproduction and emulator colour-profile limits.
+- **Normal/inverse colour variants survive level conversion.** WALL states 9 and 10
+  select normal-palette glyphs $00 and $4E respectively. Other visible walls are
+  inverse; state 3 is solid cave fill. Nonshooting birds are normal; shooting birds
+  and moving guns are inverse. Preserve these flags when moving objects.
+- **Exit colour flash runs in the camera VBlank handler.** `level.now_is_blinking`
+  is a pending request from `open_exit`; the handler clears it and changes only
+  palette 0/1 entry 0 for four GBC frames, then restores the cached level floor.
+  Cache palette colours during loading; never switch ROM banks in this handler.
 - **Bear initial facing must come from the Atari `STW*` routines, not the bird pattern.**
   `STW_DIR` in `convert_atari_levels.py` gives each creature's starting direction. Bears
   (ABCD left-hand `BEAR`, EFGH right-hand `BEAR_B`) face N,S,E,W / S,N,W,E; only the
