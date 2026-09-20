@@ -101,8 +101,11 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   load-bearing — don't reorder.
 - Timing: GBC double-speed (`cpu_fast`), `GR_TICK_GATE=3`, object delays scaled by
   `GR_DELAY_DIV=2` via `SCALE()` (gnu tuned for 25 Hz; GBC reaches ~8 cycles/s).
-- Rendering happens only inside VBlank in the main loop; logic (`update_game`) sets redraw
-  flags, then `show_game_area` flushes dirtied cells. Don't move VRAM writes out of VBlank.
+- Main starts rendering after VBlank; logic (`update_game`) sets redraw flags, then
+  `show_game_area` flushes dirtied cells using GBDK's VRAM-safe tile routines. Large redraws
+  can extend into active display. The camera eases independently in a small VBlank handler;
+  keep its helpers in HOME, publish targets atomically, and stream rows before allowing
+  the camera to enter them. Suspend the camera for menus/title/ending.
 - Wall shape is per-level: `render_gr_load` picks `wall_chars` group `(level-1)/4`, so the
   wall style changes every 4 levels — the authentic Atari rule (`ENTCV` "murki shp" in
   R1.ASM: `group = (CNUM*4 & 0xF0)>>4`). `convert_font.py`'s 16 wall groups line up 1:1 with

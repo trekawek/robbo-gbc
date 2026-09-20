@@ -36,11 +36,9 @@
 #define GR_DELAY_DIV 2
 #define SCALE(x) ((x) / GR_DELAY_DIV < 1 ? 1 : (x) / GR_DELAY_DIV)
 
-/* glue main loop runs the game logic (update_game + input) every GR_TICK_GATE
-   frames; the camera/anim ease every frame regardless.  Lower = higher game-
-   cycle rate (robbo/objects faster) at the cost of fewer smooth camera-ease
-   frames between cycles.  3 = smoothest, 2 = ~+25% cycles (robbo ~= original
-   speed), 1 = fastest but chunky scroll. */
+/* Main runs the game logic (update_game + input) every GR_TICK_GATE loop
+   iterations.  Busy iterations can span multiple display frames; the camera
+   eases independently on every VBlank.  Lower gates increase game speed. */
 #define GR_TICK_GATE 3
 #define DELAY_RADIOACTIVE_FIELD  SCALE(3)
 #define DELAY_BIRD SCALE(4)

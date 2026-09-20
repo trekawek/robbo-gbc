@@ -27,7 +27,34 @@ BANKREF_EXTERN(gr_atari_pal)
 static unsigned char slot_owner[16];
 static int scx_abs, scy_abs;
 static int max_scx, max_scy;
+/* Q4 positions keep the last few pixels of a camera move from snapping.
+   Only the VBlank handler advances them; main publishes targets atomically. */
+static volatile unsigned int camera_x, camera_y, camera_tx, camera_ty;
+static volatile unsigned char camera_active;
 static void set_sound_viewport(void);
+
+static unsigned int camera_ease(unsigned int cur, unsigned int tgt) {
+    unsigned int distance, step;
+    distance = cur < tgt ? tgt - cur : cur - tgt;
+    if (!distance) return cur;
+    step = (distance + 7) >> 3;
+    if (step > 3 * 16) step = 3 * 16;
+    return cur < tgt ? cur + step : cur - step;
+}
+
+/* Keep this handler in HOME, with no VRAM writes or banked/game-logic calls.
+   Busy game ticks may span several frames, but scrolling still runs at 60 Hz
+   and both scroll registers change together before the visible scanlines. */
+void render_gr_vblank(void) {
+    if (!camera_active) return;
+    camera_x = camera_ease(camera_x, camera_tx);
+    camera_y = camera_ease(camera_y, camera_ty);
+    SCX_REG = (unsigned char)(camera_x >> 4);
+    SCY_REG = (unsigned char)(camera_y >> 4);
+}
+
+void render_gr_camera_pause(void) { camera_active = 0; }
+void render_gr_camera_resume(void) { camera_active = 1; }
 
 /* gnu-robbo type -> ATASCII object byte (rendered via LOOK).  WALL handled
    specially (glyph 0 = the per-level wall char).  ROBBO drawn as an overlay. */
@@ -230,6 +257,7 @@ void render_gr_load(void) {
        Indexed by level number-1; this is where the green floor + blue walls come
        from (the authentic Atari colours, replacing the old semantic scheme). */
     unsigned char idx = level_packs[selected_pack].level_selected;
+    camera_active = 0;       /* LCD is off; discard any previous level's motion */
     if (idx < 1) idx = 1;
     if (idx > GR_NLEVELS) idx = GR_NLEVELS;
     idx--;
@@ -258,6 +286,8 @@ void render_gr_load(void) {
     max_scy = MAX_SCY_(level.h); if (max_scy < 0) max_scy = 0;
     scx_abs = clampi((int)robbo.x * 16 + 8 - 80, 0, max_scx);
     scy_abs = clampi((int)robbo.y * 16 + 8 - 64, 0, max_scy);
+    camera_x = camera_tx = (unsigned int)scx_abs << 4;
+    camera_y = camera_ty = (unsigned int)scy_abs << 4;
     set_sound_viewport();
     ensure_visible();
     SCX_REG = (unsigned char)scx_abs;
@@ -270,20 +300,7 @@ void render_gr_load(void) {
         struct object *p = &board[0][0];
         for (n = 0; n < (unsigned int)MAX_W * MAX_H; n++, p++) p->redraw = 0;
     }
-}
-
-/* Camera ease speed (px per loop iteration).  render_gr_camera runs once per
-   loop iteration; the logic/cycle runs every GR_TICK_GATE iterations and robbo
-   advances 16px every DELAY_ROBBO(=2) cycles.  For the camera to keep up during
-   continuous movement we need GR_TICK_GATE*SPD >= 16/DELAY_ROBBO = 8.  Deriving
-   SPD from the gate keeps the camera tracking at any gate (smaller gate -> bigger
-   but fewer steps).  gate 3->3px, 2->4px, 1->8px. */
-#define SPD ((8 + GR_TICK_GATE - 1) / GR_TICK_GATE)
-static int ease(int cur, int tgt) {
-    int d = tgt - cur;
-    if (d > SPD) return cur + SPD;
-    if (d < -SPD) return cur - SPD;
-    return tgt;
+    camera_active = 1;
 }
 
 /* Mirror the GBC camera window (in cells) into board.c's `viewport`, so
@@ -301,12 +318,25 @@ static void set_sound_viewport(void) {
 void render_gr_camera(void) {
     int tx = clampi((int)robbo.x * 16 + 8 - 80, 0, max_scx);
     int ty = clampi((int)robbo.y * 16 + 8 - 64, 0, max_scy);
-    scx_abs = ease(scx_abs, tx);
-    scy_abs = ease(scy_abs, ty);
+    int top, lo, hi;
+    __critical {
+        scx_abs = (int)(camera_x >> 4);
+        scy_abs = (int)(camera_y >> 4);
+    }
     set_sound_viewport();
     ensure_visible();
-    SCX_REG = (unsigned char)scx_abs;
-    SCY_REG = (unsigned char)(scy_abs & 0xFF);
+    /* Only let the interrupt scroll into fully uploaded rows.  The rolling
+       map contains top-1 .. top+9; its last eight rows must fit the viewport.
+       This also bounds travel while a slow game tick or teleport is processed.
+       Keep the old target during streaming, then publish the new pair together. */
+    top = scy_abs >> 4;
+    lo = top > 0 ? (top - 1) * 16 : 0;
+    hi = clampi((top + 10) * 16 - PLAYH, 0, max_scy);
+    ty = clampi(ty, lo, hi);
+    __critical {
+        camera_tx = (unsigned int)tx << 4;
+        camera_ty = (unsigned int)ty << 4;
+    }
 }
 
 /* Ambient twinkle: cycle the 2-frame animated object tiles (screws/teleports/

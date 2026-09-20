@@ -57,6 +57,18 @@ hardware via a flashcart.
 python3 tools/shot.py build/robbo.gbc out.png 200 "120:start:5,200:up:40"
 ```
 
+The camera regression uses a built [Coffee GB](https://github.com/trekawek/coffee-gb)
+core and its dependency JARs on `CAMERA_TEST_CP`. Generate matching linker symbols, then run:
+
+```sh
+make clean
+make LCCFLAGS_EXTRA='-Wl-m -Wl-j'
+java --class-path "$CAMERA_TEST_CP" tools/CameraTest.java build/robbo.gbc
+```
+
+It checks scrolling in all four directions, reversals, level bounds, vertical map wrapping,
+and that scroll registers only change outside the visible frame.
+
 ## Layout
 
 ```
@@ -85,6 +97,8 @@ drawn from the Atari playfield charset (pixel-doubled to the chunky 8px look). A
 level's normal or inverse palette purely by the glyph's high (inverse) bit.
 
 The playfield (16 cells wide × 31 tall = 256×496px) is larger than the screen, so a **scrolling
-viewport follows Robbo** with smooth easing. The BG map is only 32×32 tiles, so the tall field
-can't fit at once: `render.c` keeps a **16-row rolling window** in the map (`slot_owner[]`) and
-streams new rows in as the camera scrolls.
+viewport follows Robbo** with fractional easing on every VBlank, independently of game-logic
+speed. Both scroll registers update before the visible frame to avoid tearing. The BG map
+is only 32×32 tiles, so the tall field can't fit at once: `render.c` keeps a **16-row rolling
+window** in the map (`slot_owner[]`) and streams new rows ahead of the camera. Vertical
+targets stay within the uploaded rows, including when following a teleport.

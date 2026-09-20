@@ -16,6 +16,9 @@
 void render_gr_init(void);
 void render_gr_load(void);
 void render_gr_camera(void);
+void render_gr_vblank(void);
+void render_gr_camera_pause(void);
+void render_gr_camera_resume(void);
 void render_gr_anim(void);
 void render_gr_robbo(void);
 void hud_gr_init(void) __banked;
@@ -111,6 +114,7 @@ void main(void) {
     snd_init();
     render_gr_init();
     hud_gr_init();
+    add_VBL(render_gr_vblank);
     gr_score = 0;
 
     render_gr_logo();       /* load the logo into font tiles 0..26 */
@@ -125,6 +129,7 @@ void main(void) {
 
         /* Last level finished (capsule): play the ending, then back to title. */
         if (game_mode == END_SCREEN) {
+            render_gr_camera_pause();
             render_gr_ending();          /* HOME: load ending tiles into 0.. */
             ending_gr_show();            /* banked: animation + congratulations */
             game_mode = GAME_ON;
@@ -141,9 +146,9 @@ void main(void) {
             continue;
         }
 
-        /* --- all VRAM writes happen here, inside VBlank (real hardware locks
-               VRAM during active display).  This flushes the cells update_game
-               dirtied on the previous tick. --- */
+        /* Start VRAM work in VBlank; GBDK's tile routines wait for accessible
+           VRAM if a large redraw extends into the display period.  Scrolling
+           is committed separately by the VBlank handler, never mid-scanline. */
         /* board cells + HUD only change on a game tick, so repaint them only
            then (not every frame) - this was the bulk of the render cost. */
         if (need_render) {
@@ -158,7 +163,7 @@ void main(void) {
            The old per-frame render_gr_repaint() here was a full-screen VRAM
            rewrite that overran VBlank and slowed the whole death sequence.) */
 #if !(PROF & 16)
-        render_gr_camera();    /* ease camera, stream rows (every frame: smooth) */
+        render_gr_camera();    /* stream ahead, then publish the camera target */
 #endif
 #if !(PROF & 4)
         render_gr_anim();      /* cycle animated object tiles */
@@ -173,7 +178,9 @@ void main(void) {
            press isn't swallowed by the tick gate's per-frame prev update. */
         keys = joypad();
         if ((keys & J_START) && !(pstart & J_START)) {
-            unsigned char r = pause_gr();
+            unsigned char r;
+            render_gr_camera_pause();
+            r = pause_gr();
             if (r == 1) {                                   /* restart current level */
                 start_level();
             } else if (r == 2) {                            /* warp to a chosen level */
@@ -193,6 +200,7 @@ void main(void) {
             WX_REG = 7; WY_REG = 128;
             SHOW_WIN;
             DISPLAY_ON;
+            render_gr_camera_resume();
             last_sel = level_packs[0].level_selected;
             last_screws = (unsigned char)robbo.screws;
             need_render = 1;
