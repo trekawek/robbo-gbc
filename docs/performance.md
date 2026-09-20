@@ -1,10 +1,15 @@
 # Game-loop performance
 
-Level 4 now advances **16.37 game updates per second**, up from **8.34**
-(about **96% faster**). Camera scrolling still advances on every display frame.
-These are game-logic update rates, not host-emulator speed or display FPS.
+Gameplay now targets **14.245927 game updates per second**, matching the
+[Atari PAL movement pace](pal-timing.md). The processing optimizations remain;
+camera scrolling still advances on every display frame. These are game-logic
+update rates, not host-emulator speed or display FPS.
 
 ## Measurements
+
+The table records the optimization comparison **before the PAL pacing correction**
+(optimized commit `d8eb905`). Level 4 improved from 8.34 to 16.37 updates/s,
+which exposed that the old three-frame limit could exceed Atari's speed.
 
 Measured with Coffee GB using emulated master-clock ticks (4,194,304 per second),
 from the real level loader through 128 complete updates. Each room starts in a
@@ -41,12 +46,12 @@ callees and interrupts. Changes to the wait policy provide the remaining gain.
 - Track byte-sized drawing coordinates alongside the cell pointer. This removes
   division/modulo for each dirty cell and repeated address calculations when
   producing its four tiles. Tile/palette output and scan order are preserved.
-- Count elapsed VBlanks toward the existing three-frame update gate. Frames
-  consumed by logic and rendering count toward the wait. One update runs per
-  iteration, overdue updates do not accumulate, and all menu/load paths reset
-  the clock. The light-room ceiling remains about 19.9 updates/second.
-- Pace ambient tile animation by elapsed VBlanks too. Finish every upload batch
-  before flipping frames, retaining the six-tile upload limit.
+- Replace the old loop-iteration wait with a VBlank clock. The subsequent PAL
+  correction uses fractional periods averaging 4.192602 GBC frames per update,
+  with one pending tick and resets after menus/loads. This preserves processing
+  headroom while limiting movement to the original speed.
+- Pace ambient tile animation from that clock every 14 PAL frames. Finish every
+  upload batch before flipping frames, retaining the six-tile upload limit.
 - Compare the packed one-byte `processed` stamp with the low byte of the cycle
   counter. Previously, after tick 255, moving objects ahead in scan order could
   be processed twice in one tick. The counter now wraps as an unsigned integer.
@@ -64,7 +69,8 @@ Exact active-row counts are checked against all cell flags at each boundary.
 
 Existing camera regression and all four gameplay behavior checks pass. Additional
 counter-epoch tests cover the tick-255 boundary and the 16-bit cycle-counter wrap;
-frame-clock wrap tests exercise elapsed-frame pacing.
+frame-clock wrap tests exercise pacing. The current fractional clock does not
+depend on the wrapping `sys_time` counter.
 
 ## Reproduce
 
@@ -79,7 +85,8 @@ java -Dperformance.assertRowCounts=true --class-path "$PERFORMANCE_TEST_CP" \
   1,4,11,16,27,35,45,50,51,54 128 build/performance-after
 ```
 
-Run an earlier ROM with its own matching `.noi` and a different output directory,
+Current results include the PAL limit and will differ from the historical speed
+table above. Run an earlier ROM with its own matching `.noi` and a different output directory,
 then compare the saved per-tick snapshots with `diff -rq`. The previous engine's
 row counts were approximate, so omit the exact-count assertion for that build.
 The harness resolves runtime addresses from symbols; its documented field

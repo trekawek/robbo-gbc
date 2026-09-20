@@ -29,15 +29,17 @@
 #define DEFAULT_VIEWPORT_WIDTH 16
 #define DEFAULT_VIEWPORT_HEIGHT 12
 
-/* Original GNU Robbo object delays, scaled for this port's game cadence.
-   Keep the relative timing between objects; SCALE() floors at one tick. */
+/* Two engine ticks represent one Atari world step (seven PAL VBlanks).
+   Keep the inherited GNU Robbo delay ratios; SCALE() floors at one tick. */
 #define GR_DELAY_DIV 2
 #define SCALE(x) ((x) / GR_DELAY_DIV < 1 ? 1 : (x) / GR_DELAY_DIV)
 
-/* Minimum VBlanks between game updates, including frames spent on logic and
-   rendering. Overruns do not accumulate catch-up ticks; camera and sound
-   continue independently on VBlank. */
-#define GR_TICK_GATE 3
+/* Fractional ticks per GBC VBlank. Atari CHNGCV reloads its timer with 7;
+   DELAY_ROBBO=2 means one tick must last 3.5 PAL frames, about 70.1955 ms.
+   5488/23009 approximates the exact clock ratio 500203/2097152 with less
+   than 0.00002% error. A fixed 4- or 5-frame gate would drift from PAL. */
+#define GR_PAL_PHASE_STEP 5488u
+#define GR_PAL_PHASE_PERIOD 23009u
 #define DELAY_RADIOACTIVE_FIELD  SCALE(3)
 #define DELAY_BIRD SCALE(4)
 #define DELAY_LITTLE_BOOM SCALE(2)

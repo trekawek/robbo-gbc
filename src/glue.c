@@ -89,17 +89,44 @@ static void start_level(void) {
     snd_play(SND_ENTER);          /* Atari WFAC: Robbo appears */
 }
 
-/* sys_time is updated by the VBlank interrupt.  Read both bytes together so
-   crossing a 256-frame boundary cannot look like a long stall. */
-static unsigned int frame_clock(void) {
-    unsigned int frame;
-    __critical { frame = sys_time; }
-    return frame;
+/* The Atari scans its board every seven PAL frames. Our two-tick movement
+   delays need half that period. Accumulate the PAL/GBC clock ratio in VBlank
+   so rounding to display frames never speeds up or slows down the long-term
+   cadence. A single pending flag coalesces overruns instead of queuing work. */
+static volatile unsigned int game_tick_phase;
+static volatile unsigned char game_tick_due;
+static unsigned char game_anim_tick;
+
+static void game_clock_vblank(void) {
+    game_tick_phase += GR_PAL_PHASE_STEP;
+    if (game_tick_phase < GR_PAL_PHASE_PERIOD) return;
+    game_tick_phase -= GR_PAL_PHASE_PERIOD;
+    game_tick_due = 1;
+    /* CHNMON uses CNTR & 2: toggle after two Atari scans / four half-steps. */
+    if (++game_anim_tick == 4) {
+        game_anim_tick = 0;
+        gr_anim_frame ^= 1;
+    }
+}
+
+static void game_clock_reset(void) {
+    __critical {
+        game_tick_phase = 0;
+        game_tick_due = 0;
+    }
+}
+
+static unsigned char game_clock_take(void) {
+    unsigned char due;
+    __critical {
+        due = game_tick_due;
+        game_tick_due = 0;
+    }
+    return due;
 }
 
 void main(void) {
     unsigned char keys, prev = 0, pstart = 0, need_render = 1, last_screws = 0;
-    unsigned int last_tick_frame, frame;
     int last_sel;
 
     if (_cpu == CGB_TYPE) cpu_fast();   /* CGB double-speed */
@@ -127,6 +154,7 @@ void main(void) {
     render_gr_init();
     hud_gr_init();
     add_VBL(render_gr_vblank);
+    add_VBL(game_clock_vblank);
     gr_score = 0;
 
     render_gr_logo();       /* load the logo into font tiles 0..26 */
@@ -135,7 +163,7 @@ void main(void) {
 
     start_level();
     last_sel = level_packs[0].level_selected;
-    last_tick_frame = frame_clock();
+    game_clock_reset();
 
     while (1) {
         wait_vbl_done();
@@ -156,7 +184,7 @@ void main(void) {
             last_sel = level_packs[0].level_selected;
             last_screws = (unsigned char)robbo.screws;
             need_render = 1; prev = pstart = 0;
-            last_tick_frame = frame_clock();
+            game_clock_reset();
             continue;
         }
 
@@ -214,21 +242,18 @@ void main(void) {
             last_sel = level_packs[0].level_selected;
             last_screws = (unsigned char)robbo.screws;
             need_render = 1;
-            last_tick_frame = frame_clock();
+            game_clock_reset();
             prev = pstart = keys;
             continue;
         }
         pstart = keys;
 
-        /* Count real display frames, including time spent updating objects and
-           painting dirty cells.  Start at most one tick here and discard any
-           overdue ticks, so a busy room or menu cannot cause a catch-up burst. */
-        frame = frame_clock();
-        if ((unsigned int)(frame - last_tick_frame) < GR_TICK_GATE) {
+        /* The clock continues during object/render work. Consume at most one
+           scheduled half-step; menus and level loads discard any pending tick. */
+        if (!game_clock_take()) {
             prev = keys;
             continue;
         }
-        last_tick_frame = frame;
 
         if (game_mode == GAME_ON) {
             /* input: A held + dir = shoot, else dir = move (edge-triggered for
@@ -259,7 +284,7 @@ void main(void) {
                 DISPLAY_OFF; render_gr_load(); DISPLAY_ON;
                 last_screws = (unsigned char)robbo.screws;
                 need_render = 1;
-                last_tick_frame = frame_clock();
+                game_clock_reset();
             } else {
 #if !(PROF & 1)
                 update_game();     /* logic only: sets redraw flags, no VRAM writes */
@@ -280,7 +305,7 @@ void main(void) {
                     if (--restart_timeout == 0) {
                         start_level();
                         last_sel = level_packs[0].level_selected;
-                        last_tick_frame = frame_clock();
+                        game_clock_reset();
                     }
                 }
             }

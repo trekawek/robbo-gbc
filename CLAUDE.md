@@ -103,10 +103,13 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   The `y`-then-`x` scan order is load-bearing — don't reorder.
 - `processed` stores only the low byte of unsigned `cycle_count`; comparisons
   must cast the counter to a byte too, including after tick 255.
-- Timing: GBC double-speed (`cpu_fast`), `GR_TICK_GATE=3` elapsed VBlanks between
-  update starts, and object delays scaled by `GR_DELAY_DIV=2` via `SCALE()`.
-  Frames spent doing logic/render count toward the gate; overruns never queue
-  catch-up ticks. Reset the atomic frame clock after menus and level loads.
+- Timing: GBC double-speed (`cpu_fast`), a fractional VBlank clock at 14.245927
+  engine ticks/s, and object delays scaled by `GR_DELAY_DIV=2` via `SCALE()`.
+  Two engine ticks equal Atari CHNGCV's seven PAL frames (140.391 ms). The
+  5488/23009 phase ratio avoids rounding to a fixed number of GBC frames.
+  A single pending flag coalesces overruns; reset the clock after menus/loads.
+  The same clock toggles ambient tiles every four ticks (14 PAL frames).
+  Sound, camera and gameplay use three custom VBlank handlers plus GBDK's default.
 - Main starts rendering after VBlank; logic (`update_game`) sets redraw flags, then
   `show_game_area` flushes dirtied cells using GBDK's VRAM-safe tile routines. Large redraws
   can extend into active display. The camera eases independently in a small VBlank handler;
@@ -181,8 +184,10 @@ gun/bird crackle. Robbo's own actions always pass `SND_NORM`.
 See `docs/performance.md` and `tools/PerformanceTest.java`. The current engine
 removes the second active-row scan, expensive per-dirty-cell division, generic
 object creation when clearing a cell, and leftover work from the handler split.
-Level 4 improved from 8.3 to 16.4 updates/second, with identical per-tick behavior
-in the first 128 updates. Camera, sound, and ambient animation use VBlank time.
+Level 4 processing improved from 8.3 to 16.4 updates/second before applying the
+PAL speed limit. Gameplay now targets 14.245927 updates/second; see
+`docs/pal-timing.md` and `tools/TimingTest.java`. Per-tick behavior is unchanged.
+Camera, sound, and ambient animation use VBlank time.
 Measure emulated time, not host emulator throughput; compare board traces per
 logical tick and assert row counts before accepting further optimizations.
 

@@ -107,6 +107,9 @@ GR_GLOBAL int sound;
 
 #include "board.h"
 
+/* Shared PAL-paced ambient font frame; published by the HOME VBlank clock. */
+GR_GLOBAL volatile unsigned char gr_anim_frame;
+
 /* ---- function prototypes the logic relies on (provided by the GBC shim) ---- */
 int  my_rand(void);
 void my_srand(unsigned int seed);

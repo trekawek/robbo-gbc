@@ -76,7 +76,8 @@ remaining hardware approximations, and reference-audio generation.
 
 [Performance measurements](docs/performance.md) cover ten representative rooms,
 including level 4, with a symbol-driven Coffee GB benchmark and per-tick board
-comparisons.
+comparisons. A fractional clock keeps movement at the [Atari PAL pace](docs/pal-timing.md)
+instead of letting faster processing accelerate gameplay.
 
 ## Layout
 

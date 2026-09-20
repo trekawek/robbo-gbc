@@ -341,23 +341,17 @@ void render_gr_camera(void) {
 
 /* Ambient twinkle: cycle the 2-frame animated object tiles (screws/teleports/
    etc.) in their fixed tile slots, spread across frames to avoid VBlank overrun.
-   Call once per main-loop iteration; use elapsed display frames so busy game
-   ticks do not slow the animation.  Mirrors the original FNT animation. */
+   The VBlank PAL clock toggles gr_anim_frame every 14 PAL frames, matching
+   CHNMON's CNTR & 2. Finish each upload batch before following a new frame. */
 void render_gr_anim(void) {
-    static unsigned char started, frame, batch;
-    static unsigned int last_flip;
-    unsigned int now;
+    static unsigned char frame, batch;
     unsigned char i, start, end;
-    __critical { now = sys_time; }
-    if (!started) { started = 1; last_flip = now; }
     start = (unsigned char)(batch * 6);
     if (start >= ANIM_NCHARS) {
-        if ((unsigned int)(now - last_flip) < 16) return;
+        if (frame == gr_anim_frame) return;
         /* Finish all uploads before starting a new frame, even if a busy room
-           needed more than 16 VBlanks.  Discard missed flips instead of letting
-           repeated restarts starve the last tile batches. */
-        frame ^= 1;
-        last_flip = now;
+           missed a flip. Restarting an unfinished batch could starve its tail. */
+        frame = gr_anim_frame;
         batch = 0;
         start = 0;
     }
