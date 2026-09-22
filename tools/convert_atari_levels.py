@@ -17,9 +17,6 @@ Usage: convert_atari_levels.py ATARI_D2_DIR OUT_DAT
 """
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("Usage: convert_atari_levels.py ATARI_D2_DIR OUT_DAT")
-ATARI_DIR, OUT_DAT = sys.argv[1], sys.argv[2]
 W, H = 16, 31
 LEGACY_COLOUR = "608050"
 
@@ -82,9 +79,12 @@ def byte_to_cell(b):
     if b in (0x5E, 0x22, 0x3C, 0x3E):                  # DZ2 laser cannon -> solid gun
         gdir = OLD2GNU[{0x5E:0,0x22:1,0x3C:2,0x3E:3}[b]]
         return Cell('}', [gdir, gdir, 1, 0, 0, 0])     # shottype 1 = laser beam
-    if b in (0x01, 0x04, 0x17, 0x18):                  # DZ3 bullet gun
-        gdir = OLD2GNU[{0x18:0,0x17:1,0x01:2,0x04:3}[b]]
-        return Cell('}', [gdir, gdir, 0, 0, 0, 0])
+    if b in (0x01, 0x04, 0x17, 0x18):                  # DZ3 blaster
+        # R2.ASM PROC: $01=right, $04=left, $17=down, $18=up.
+        # The pipe glyphs depict the barrel extending from the vertical bar:
+        # Level 22's three left-hand cannons (├) shoot RIGHT into the debris.
+        gdir = OLD2GNU[{0x18:0,0x17:1,0x04:2,0x01:3}[b]]
+        return Cell('}', [gdir, gdir, 2, 0, 0, 0])     # shottype 2 = blaster
     if 0x2C <= b <= 0x2F:                              # DZRU rotating cannon ,-./
         gdir = OLD2GNU[{0x2C:3,0x2D:1,0x2E:2,0x2F:0}[b]]
         return Cell('}', [gdir, gdir, 0, 0, 1, 0])     # rotable gun
@@ -153,14 +153,18 @@ def emit_level(out, num, rows, add):
     out += ["[end]"]
 
 def main():
-    atari = parse_atari(ATARI_DIR)        # 56 authentic Atari levels (game order)
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: convert_atari_levels.py ATARI_D2_DIR OUT_DAT")
+    atari_dir, out_dat = sys.argv[1], sys.argv[2]
+    atari = parse_atari(atari_dir)        # 56 authentic Atari levels (game order)
     if len(atari) != 56:
         raise ValueError(f"Expected 56 Atari levels, found {len(atari)}")
     out = ["[name]", "AtariRobbo", "[last_level]", str(len(atari))]
     for num, source in enumerate(atari, 1):
         rows, add = atari_level_to_dat(source, num)
         emit_level(out, num, rows, add)
-    open(OUT_DAT, "w", encoding="latin-1").write("\n".join(out) + "\n")
-    print(f"wrote {OUT_DAT}: {len(atari)} Atari levels")
+    open(out_dat, "w", encoding="latin-1").write("\n".join(out) + "\n")
+    print(f"wrote {out_dat}: {len(atari)} Atari levels")
 
-main()
+if __name__ == "__main__":
+    main()

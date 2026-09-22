@@ -169,6 +169,11 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   the authentic facing is all that's needed to match.
 - **DZ1 guns = bullets (shottype 0), DZ2 = laser (shottype 1).** Getting shottype wrong
   makes projectiles render as the wrong object (e.g. laser beam looking like the cannon).
+- **DZ3 pipe-glyph guns are blasters (shottype 2): `├` fires right, `┤` left,
+  `┬` down, `┴` up.** This follows R2.ASM's PROC dispatch to DZ3R/L/D/U. The
+  converter previously swapped the horizontal pair and emitted ordinary bullets;
+  level 22's three left-hand guns consequently fired into the wall. Run
+  `python3 tools/test_convert_atari_levels.py` after changing cannon conversion.
 - After editing any header, `make clean` — header dependencies aren't fully tracked and you
   get stale-link errors otherwise.
 
