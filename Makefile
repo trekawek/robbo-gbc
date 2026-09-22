@@ -9,10 +9,8 @@ ROM    := $(BUILD)/robbo.gbc
 
 # Assets converted at build time: the Atari original supplies the font, sound
 # tables, instruction text AND the authentic level designs (d2/C*.txt, converted
-# to the engine's level format by tools/convert_atari_levels.py).  GNU Robbo's
-# original.dat supplies legacy colour fields; Atari metadata sets the GBC palette.
-ORIG     ?= $(HOME)/dev/lkavalon-atari/robbo
-GNUROBBO ?= $(HOME)/dev/gnurobbo-0.66
+# to the engine's level format by tools/convert_atari_levels.py).
+ORIG ?= $(HOME)/dev/lkavalon-atari/robbo
 
 # `make ENDING_TEST=1` adds a trivial bonus planet (last level) whose completion
 # triggers the final animation -- warp to the highest level and step right twice.
@@ -68,9 +66,9 @@ $(SRCDIR)/atari_pal.c: tools/gen_atari_pal.py tools/atari_pal_palette.txt $(wild
 	$(PY) tools/gen_atari_pal.py "$(ORIG)/d2" > $@.tmp
 	mv $@.tmp $@
 
-# authentic Atari level designs -> engine .dat (gnu file supplies per-level colour)
-$(ATARIDAT): tools/convert_atari_levels.py $(wildcard $(ORIG)/d2/C[123].txt) $(GNUROBBO)/data/levels/original.dat
-	$(PY) tools/convert_atari_levels.py "$(ORIG)/d2" "$(GNUROBBO)/data/levels/original.dat" $(ATARIDAT) 56
+# authentic Atari level designs -> engine .dat
+$(ATARIDAT): tools/convert_atari_levels.py $(wildcard $(ORIG)/d2/C[123].txt)
+	$(PY) tools/convert_atari_levels.py "$(ORIG)/d2" $(ATARIDAT)
 
 $(LEVELS) $(SRCDIR)/levels_data.h: tools/convert_gnu_levels.py $(ATARIDAT)
 	$(PY) tools/convert_gnu_levels.py "$(ATARIDAT)" $(SRCDIR)

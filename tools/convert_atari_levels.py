@@ -9,17 +9,19 @@ the equivalent gnu-robbo .dat glyph + [additional] params (directions, teleport
 groups, gun shot-types), per src/loader.c transform_char + the [additional]
 switch.
 
-Output: a merged original.dat = Atari levels for the requested range, gnu-robbo
-levels for the rest (so convert_gnu_levels.py's SKIP={53,58} still yields 56).
+Output: an original.dat-compatible file containing all 56 Atari levels.  The
+legacy [colour] field gets a fixed compatibility value; the game renders the
+authentic colours from Atari metadata instead.
 
-Usage: convert_atari_levels.py ATARI_D2_DIR GNU_ORIGINAL_DAT OUT_DAT [N_ATARI]
-  N_ATARI = how many leading levels to take from Atari (default 3, for L1-3).
+Usage: convert_atari_levels.py ATARI_D2_DIR OUT_DAT
 """
-import sys, re
+import sys
 
-ATARI_DIR, GNU_DAT, OUT_DAT = sys.argv[1], sys.argv[2], sys.argv[3]
-N_ATARI = int(sys.argv[4]) if len(sys.argv) > 4 else 3
+if len(sys.argv) != 3:
+    raise SystemExit("Usage: convert_atari_levels.py ATARI_D2_DIR OUT_DAT")
+ATARI_DIR, OUT_DAT = sys.argv[1], sys.argv[2]
 W, H = 16, 31
+LEGACY_COLOUR = "608050"
 
 # d2 glyph -> ATASCII byte (level-parser.go ATASCII_TO_ASCII, inverted)
 ATASCII = {0x00:'♥',0x01:'├',0x04:'┤',0x05:'┐',0x06:'╱',0x0A:'◣',0x0D:'▔',
@@ -141,39 +143,9 @@ def atari_level_to_dat(rows, num):
         sys.stderr.write(f"L{num}: unmapped glyphs {unknown}\n")
     return data_rows, add
 
-def parse_gnu(dat):
-    """Return ordered list of dicts {num,colour,grid(list rows),add(list)} for all
-    gnu levels, preserving their raw text (we only replace 1..N_ATARI)."""
-    text = [l.rstrip('\r\n') for l in open(dat, encoding='latin-1')]
-    levels = {}
-    i = 0; cur = None; mode = None
-    while i < len(text):
-        line = text[i]
-        if line == '[level]':
-            cur = {'num': int(text[i+1]), 'colour': None, 'grid': [], 'add': []}
-            levels[cur['num']] = cur; i += 2; mode = None; continue
-        if line == '[colour]': cur['colour'] = text[i+1]; i += 2; mode = None; continue
-        if line == '[size]': i += 2; mode = None; continue
-        if line in ('[author]',): i += 2; mode = None; continue
-        if line == '[level_notes]': i += 1; mode = 'skip'; continue
-        if line == '[data]': mode = 'data'; i += 1; continue
-        if line == '[additional]':
-            mode = None; i += 1; cnt = int(text[i]); i += 1
-            for _ in range(cnt):
-                cur['add'].append(text[i]); i += 1
-            continue
-        if line == '[end]': mode = None; i += 1; continue
-        if mode == 'data':
-            if line == '' or line.startswith('['): mode = None; continue
-            cur['grid'].append(line); i += 1; continue
-        if mode == 'skip':
-            if line.startswith('['): mode = None; continue
-            i += 1; continue
-        i += 1
-    return levels
-
-def emit_level(out, num, rows, add, colour):
-    out += ["[level]", str(num), "[colour]", colour, "[size]", f"{W}.{H}", "[data]"]
+def emit_level(out, num, rows, add):
+    out += ["[level]", str(num), "[colour]", LEGACY_COLOUR,
+            "[size]", f"{W}.{H}", "[data]"]
     out += rows
     out += ["[additional]", str(len(add))]
     for (x, y, ch, vals) in add:
@@ -182,32 +154,13 @@ def emit_level(out, num, rows, add, colour):
 
 def main():
     atari = parse_atari(ATARI_DIR)        # 56 authentic Atari levels (game order)
-    gnu = parse_gnu(GNU_DAT)              # used only for per-level colour
-    NA = len(atari)
-    if N_ATARI >= NA:
-        # FULL: emit exactly the 56 Atari levels 1:1 (no gnu fill, no SKIP needed;
-        # convert_gnu_levels.py skips nothing when last_level == 56).
-        out = ["[name]", "AtariRobbo", "[last_level]", str(NA)]
-        for num in range(1, NA + 1):
-            rows, add = atari_level_to_dat(atari[num-1], num)
-            colour = (gnu.get(num, {}).get('colour')) or "608050"
-            emit_level(out, num, rows, add, colour)
-        open(OUT_DAT, "w", encoding="latin-1").write("\n".join(out) + "\n")
-        print(f"wrote {OUT_DAT}: {NA} Atari levels (full)")
-    else:
-        # PARTIAL (validation): Atari for 1..N_ATARI, gnu for the rest, keeping all
-        # gnu levels so convert_gnu_levels.py SKIP={53,58} still yields 56.
-        out = ["[name]", "AtariRobbo", "[last_level]", str(max(gnu))]
-        for num in sorted(gnu):
-            lv = gnu[num]
-            colour = lv['colour'] if lv['colour'] else "608050"
-            if num <= N_ATARI:
-                rows, add = atari_level_to_dat(atari[num-1], num)
-            else:
-                rows, add = lv['grid'], [(int(r.split('.')[0]), int(r.split('.')[1]),
-                    r.split('.')[2], [int(v) for v in r.split('.')[3:]]) for r in lv['add']]
-            emit_level(out, num, rows, add, colour)
-        open(OUT_DAT, "w", encoding="latin-1").write("\n".join(out) + "\n")
-        print(f"wrote {OUT_DAT}: {max(gnu)} levels, first {N_ATARI} from Atari")
+    if len(atari) != 56:
+        raise ValueError(f"Expected 56 Atari levels, found {len(atari)}")
+    out = ["[name]", "AtariRobbo", "[last_level]", str(len(atari))]
+    for num, source in enumerate(atari, 1):
+        rows, add = atari_level_to_dat(source, num)
+        emit_level(out, num, rows, add)
+    open(OUT_DAT, "w", encoding="latin-1").write("\n".join(out) + "\n")
+    print(f"wrote {OUT_DAT}: {len(atari)} Atari levels")
 
 main()

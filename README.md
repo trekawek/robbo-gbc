@@ -38,8 +38,8 @@ HUD (bottom two rows): screws left · keys · ammo · lives · level · score.
 ## Build
 
 Requires the bundled GBDK-2020 (in `third_party/gbdk/`) and `python3`. Asset conversion reads the
-original Atari game data (font/sound/text) and GNU Robbo's level pack; override their locations
-with `ORIG=` and `GNUROBBO=` if they live elsewhere:
+original Atari game data (font, sound, text, levels and palettes); override its location with
+`ORIG=` if it lives elsewhere:
 
 ```sh
 make            # regenerates assets + levels, builds build/robbo.gbc

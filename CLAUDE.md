@@ -11,13 +11,11 @@ file is the working guide for continuing development.
 
 - `ORIG` = `~/dev/lkavalon-atari/robbo` — original Atari game. Supplies the font, sound
   tables, instruction text, and the **authentic level designs** (`d2/C*.txt`).
-- `GNUROBBO` = `~/dev/gnurobbo-0.66` — GNU Robbo. Supplies the engine logic we ported and
-  `data/levels/original.dat` (used only for per-level colours now, not level geometry).
 - `~/dev/coffee-gb` — headless Java GBC emulator used by the `solver/` test harness.
 - Reference commit `882ea088c4cdb10f365e26e06cb54260c1d90b49` = the older GBC build whose
   levels were considered "correct" during the Atari-faithfulness work.
 
-Override `ORIG=`/`GNUROBBO=` on the make line if they live elsewhere.
+Override `ORIG=` on the make line if it lives elsewhere.
 
 ## Build
 
