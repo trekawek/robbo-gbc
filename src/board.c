@@ -195,7 +195,16 @@ update_game(void)
 			case LASER_L: case LASER_D: case BIG_BOOM:
 			case RADIOACTIVE_FIELD: case TELEPORT: case TELEPORTING:
 			    if (upd_g4(x, y)) return; break;
-			case PUSH_BOX: case MAGNET: case GUN:
+			case PUSH_BOX: case MAGNET:
+			    if (upd_g5(x, y)) return; break;
+			case GUN:
+			    /* A fixed gun on cooldown only synchronizes its image.
+			       Keep that write here and skip the banked handler's
+			       movement/rotation checks until it can fire again. */
+			    if (!c->movable && !c->rotable && c->shooted) {
+				c->state = c->direction;
+				break;
+			    }
 			    if (upd_g5(x, y)) return; break;
 			default: break;
 			}

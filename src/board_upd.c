@@ -523,22 +523,28 @@ int upd_g3(int x, int y) __banked
 int upd_g4(int x, int y) __banked
 {
     int temp_state, i;
+    unsigned char laser_type, laser_direction;
+    struct object *front;
     struct Coords coords, coords_temp;
     switch (board[x][y].type) {
 		    case LASER_L:
 		    case LASER_D:
+			laser_type = board[x][y].type;
+			laser_direction = board[x][y].direction;
 			set_coords(&coords, x, y);
-			redraw_field(x, y);
-			update_coords(&coords, board[x][y].direction);
-			SET_MOVED(x, y, DELAY_LASER);
+			/* This laser is already in bounds and active: writing directly
+			   skips redraw bounds checks and delay-setter reactivation. */
+			board[x][y].redraw = 1;
+			update_coords(&coords, laser_direction);
+			board[x][y].moved = DELAY_LASER;
 
 			if ((coords.x == robbo.x) && (coords.y == robbo.y)
 			    && !board[x][y].returnlaser) {
 			    kill_robbo();
 			    return 1;	/* Thunor: Exiting here stops new lasers from being created */
 			}
-			set_coords(&coords, x, y);
 			if (board[x][y].solidlaser == 0) {
+			    set_coords(&coords, x, y);
 			    negate_state(x, y);
 
 			    if (can_move(coords, board[x][y].direction)) {	/* normal shooting */
@@ -565,32 +571,97 @@ int upd_g4(int x, int y) __banked
 			    }
 			} else {
 				/* **************************** laser is solid ********************** */
-			    set_coords(&coords_temp, x, y);	/* first let's check that laser starts from a gun, if not, means gun was moved, or blown */
-			    while (board[coords_temp.x][coords_temp.y].type == board[x][y].type &&  coords_temp.x>=0 && coords_temp.y>=0 &&  coords_temp.x<=level.w && coords_temp.y<=level.h) {	/* move * on * laser */
-				if(update_coords(&coords_temp, (board[x][y].direction + 2) & 0x03)) break;
+			    /* Validate that this segment is still connected to its gun.
+			       This used to call update_coords() for every preceding beam
+			       cell.  Each beam still requires quadratic traversal, but
+			       walking its axis directly removes the costly helper and
+			       its repeated two-axis bounds checks.  The stop is identical,
+			       including the boundary case where update_coords() failed. */
+			    set_coords(&coords_temp, x, y);
+			    switch (laser_direction) {
+			    case 0:
+				while (board[coords_temp.x][y].type == laser_type) {
+				    if (coords_temp.x == 0) break;
+				    coords_temp.x--;
 				}
+				break;
+			    case 1:
+				while (board[x][coords_temp.y].type == laser_type) {
+				    if (coords_temp.y == 0) break;
+				    coords_temp.y--;
+				}
+				break;
+			    case 2:
+				while (board[coords_temp.x][y].type == laser_type) {
+				    if (coords_temp.x == level.w - 1) break;
+				    coords_temp.x++;
+				}
+				break;
+			    default:
+				while (board[x][coords_temp.y].type == laser_type) {
+				    if (coords_temp.y == level.h - 1) break;
+				    coords_temp.y++;
+				}
+				break;
+			    }
 			    if (board[coords_temp.x][coords_temp.y].type != GUN) {	/* ok, now we are at the beginning of laser beam if it is not a gun, which is there, destroy laser */
 				create_object(x, y, LITTLE_BOOM);
 				break;
 			    }
 					/* neurocyp: set the state for the whole beam (begin)*/
   	    		    set_coords(&coords_temp, x, y);	
-			    update_coords(&coords_temp, (board[x][y].direction+2) & 0x03);
+			    update_coords(&coords_temp, (laser_direction+2) & 0x03);
 			    if(board[coords_temp.x][coords_temp.y].type==GUN) {   /* are we at the beginning of the laser? */
 				temp_state=(board[x][y].state==3)?2:3;
-				set_coords(&coords_temp, x, y);	/* first let's check that laser starts from a gun, if not, means gun was moved, or blown */
-			   	while ((board[coords_temp.x][coords_temp.y].type == board[x][y].type) && 
-				board[coords_temp.x][coords_temp.y].direction==board[x][y].direction && 
-				coords_temp.x>=0 && coords_temp.y>=0 &&  coords_temp.x<=level.w && coords_temp.y<=level.h) {	/* move * on * laser with the same direction and all */					
-						redraw_field(coords_temp.x, coords_temp.y); /* we will have to redraw the whole beam, as we changed it's state*/
-						board[coords_temp.x][coords_temp.y].state=temp_state;
-						if(update_coords(&coords_temp, board[x][y].direction)) break; /* just in case, if we are unable to update coords then we quit the loop */
-					}
-				}			   	
+				set_coords(&coords_temp, x, y);
+				/* The whole connected beam changes frame together.  As with
+				   the origin check above, traverse its fixed axis directly
+				   instead of paying for update_coords() and redraw_field()
+				   once per segment. */
+				for (;;) {
+				    struct object *beam = &board[coords_temp.x][coords_temp.y];
+				    if (beam->type != laser_type ||
+					beam->direction != laser_direction)
+					break;
+				    beam->redraw = 1;
+				    beam->state = temp_state;
+				    switch (laser_direction) {
+				    case 0:
+					if (coords_temp.x == level.w - 1) goto beam_state_done;
+					coords_temp.x++;
+					break;
+				    case 1:
+					if (coords_temp.y == level.h - 1) goto beam_state_done;
+					coords_temp.y++;
+					break;
+				    case 2:
+					if (coords_temp.x == 0) goto beam_state_done;
+					coords_temp.x--;
+					break;
+				    default:
+					if (coords_temp.y == 0) goto beam_state_done;
+					coords_temp.y--;
+					break;
+				    }
+				}
+			beam_state_done:;
+				}
 					/* neurocyp: set the state for the whole beam (end)*/
-			    if (can_move(coords, board[x][y].direction) && board[x][y].returnlaser == 0) {	/* if can shoot */
-				update_coords(&coords, board[x][y].direction);
-				shoot_object(x, y, board[x][y].direction);
+			    /* An outbound non-tip segment only faces the next segment.
+			       The generic can_move()/update_coords() path below can do
+			       nothing for it, so avoid both helpers. */
+			    /* coords still holds the forward neighbor from the kill
+			       check above (or this cell when at the board boundary). */
+			    front = &board[coords.x][coords.y];
+			    if (!board[x][y].returnlaser &&
+				(coords.x != x || coords.y != y) &&
+				(front->type == LASER_L || front->type == LASER_D) &&
+				front->direction == laser_direction)
+				break;
+			    set_coords(&coords, x, y);
+			    if (can_move(coords, laser_direction) && board[x][y].returnlaser == 0) {	/* if can shoot */
+				update_coords(&coords, laser_direction);
+				shoot_object(x, y, laser_direction);
 				SET_MOVED(coords.x, coords.y, DELAY_LASER);
 			    } else {
 				if (board[x][y].returnlaser == 1) {
