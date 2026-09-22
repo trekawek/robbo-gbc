@@ -29,6 +29,7 @@ public class CannonTest implements AutoCloseable {
     private static final int WIDTH = 16, HEIGHT = 31, CELL_BYTES = 14, UPDATES = 192;
     private static final int EMPTY = 0, SCREW = 4, BOX = 6, GROUND = 24, GUN = 50, BLASTER = 58;
     private static final int EAST = 0, BLASTER_SHOT = 2;
+    private static final int LCDC = 0xff40;
     private final EventBus bus = new EventBusImpl();
     private final Gameboy gb;
     private final Map<String, Integer> symbols = new HashMap<>();
@@ -122,11 +123,28 @@ public class CannonTest implements AutoCloseable {
         put(address + 13, 2); // redraw, not inlist
     }
 
+    private void assertBlasterTile(int x, int y) {
+        int state = b(cell(x, y) + 2);
+        // LOOK[X] is tile 2 for the projectile head; LOOK[b..e] produces
+        // tiles 4,6,8,6 for the four trail states.
+        int[] expected = {2, 4, 6, 8, 6};
+        check(state >= 0 && state < expected.length,
+                "invalid blaster state " + state + " at (" + x + "," + y + ")");
+        int map = (b(LCDC) & 0x08) != 0 ? 0x9c00 : 0x9800;
+        // Read VRAM directly: CPU-bus reads legitimately return 0xff while the
+        // LCD controller owns VRAM during pixel transfer.
+        int tile = gb.getGpu().getVideoRam0()
+                .getByte(map + ((y & 15) * 2) * 32 + x * 2);
+        check(tile == expected[state], "blaster state " + state + " at (" + x + "," + y
+                + ") renders tile " + tile + ", expected " + expected[state]);
+    }
+
     private void run() {
         boot();
         assertRows();
         boolean[][] debris = new boolean[3][WIDTH];
         int[] farthestBlaster = new int[3];
+        boolean sawHead = false, sawTrail = false;
         for (int y = 6; y <= 8; y++) {
             int address = cell(1, y);
             check(b(address) == GUN, "missing cannon at (1," + y + ")");
@@ -155,10 +173,18 @@ public class CannonTest implements AutoCloseable {
                 check(b(cell(14, y)) == SCREW, "screw destroyed at (14," + y + ")");
                 for (int x = 2; x < 14; x++) if (b(cell(x, y)) == BLASTER) {
                     check(b(cell(x, y) + 3) == EAST, "blaster is not travelling east");
+                    // The initial camera owns rows 0..7; row 8 is just outside
+                    // its rolling tile-map window and legitimately remains 0xff.
+                    if (y < 8) {
+                        assertBlasterTile(x, y);
+                        if (b(cell(x, y) + 2) == 0) sawHead = true;
+                        else sawTrail = true;
+                    }
                     farthestBlaster[y - 6] = Math.max(farthestBlaster[y - 6], x);
                 }
             }
         }
+        check(sawHead && sawTrail, "did not observe both projectile-head and trail rendering");
         for (int y = 6; y <= 8; y++) {
             int count = 0, farthestDebris = 0;
             for (int x = 0; x < WIDTH; x++) if (debris[y - 6][x]) {
@@ -171,7 +197,7 @@ public class CannonTest implements AutoCloseable {
             System.out.printf("  Row %d: %d debris cleared; eastbound blaster reached x=%d; screw preserved%n",
                     y, count, farthestBlaster[y - 6]);
         }
-        System.out.printf("PASS %d live updates; Robbo alive; exact active-row counts at every boundary%n", UPDATES);
+        System.out.printf("PASS %d live updates; projectile/trail tiles correct; Robbo alive; exact active-row counts at every boundary%n", UPDATES);
     }
 
     @Override public void close() { try { gb.close(); } finally { bus.close(); } }

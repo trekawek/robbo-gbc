@@ -74,6 +74,7 @@ With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"
 tools/CannonTest.java build/robbo.gbc` checks level 22's three left-hand cannons.
 It verifies right-facing blasters, then removes their blocking boxes to isolate
 firing behavior and checks that all three clear debris while preserving screws.
+The same test verifies the projectile-head and animated blast-trail tiles.
 
 All 15 sound effects can be recorded and checked against the Atari tables with
 `make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its

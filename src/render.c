@@ -106,8 +106,11 @@ static const unsigned char type2asc[71] = {
 #define PAL_BOOM    4   /* explosions share the hazard palette (6 freed for HUD) */
 
 /* directional aim glyphs: index by gnu-robbo direction (0=E 1=S 2=W 3=N) */
-static const unsigned char GUN_DIR[4]   = { 0x2C, 0x2D, 0x2E, 0x2F }; /* , - . /  (R D L U) */
-static const unsigned char BLAST_DIR[4] = { 0x1F, 0x1D, 0x1E, 0x1C }; /* > v < ^ */
+static const unsigned char GUN_DIR[4] = { 0x2C, 0x2D, 0x2E, 0x2F }; /* , - . /  (R D L U) */
+/* Atari DZ3 heads are X/Z/W/Y for right/down/left/up.  All four currently
+   share the same small projectile artwork through LOOK, but retaining the
+   authentic bytes documents the direction mapping and keeps it future-proof. */
+static const unsigned char BLASTER_HEAD[4] = { 0x58, 0x5A, 0x57, 0x59 };
 
 /* ATASCII glyph byte for a board cell (before LOOK), honouring direction/state */
 static unsigned char cell_glyph(unsigned char t, unsigned char st, unsigned char dir) {
@@ -120,7 +123,11 @@ static unsigned char cell_glyph(unsigned char t, unsigned char st, unsigned char
        the authentic Atari open-exit flash. */
     case CAPSULE:                     return (unsigned char)((st & 1) ? 0x16 : 0x14);
     case GUN:                         return GUN_DIR[dir & 3];
-    case BLASTER:                     return BLAST_DIR[dir & 3];
+    /* A fresh (state 0) blaster is the W/X/Y/Z projectile.  Once it advances,
+       GNU Robbo leaves the previous cell behind and increments state through
+       1..4; those frames correspond to Atari's b..e explosion trail. */
+    case BLASTER:                     return st ? (unsigned char)(0x61 + (st > 4 ? 4 : st))
+                                                  : BLASTER_HEAD[dir & 3];
     /* magnet glyph: it scans in its 'direction' and pulls Robbo the opposite way
        (toward itself).  dir 0=East -> opening faces East -> '(' 0x28; dir 2=West
        -> ')' 0x29.  (Was reversed.) */

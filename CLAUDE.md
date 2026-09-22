@@ -174,6 +174,8 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   converter previously swapped the horizontal pair and emitted ordinary bullets;
   level 22's three left-hand guns consequently fired into the wall. Run
   `python3 tools/test_convert_atari_levels.py` after changing cannon conversion.
+  BLASTER rendering is stateful: state 0 uses the Atari W/X/Y/Z projectile head;
+  states 1..4 use the b..e blast trail. Do not render BLASTER with cannon arrows.
 - After editing any header, `make clean` — header dependencies aren't fully tracked and you
   get stale-link errors otherwise.
 
