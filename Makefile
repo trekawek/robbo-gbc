@@ -6,6 +6,7 @@ SRCDIR := src
 GENDIR := src/gen
 BUILD  := build
 ROM    := $(BUILD)/robbo.gbc
+TITLE  := ROBBO
 
 # Assets converted at build time: the Atari original supplies the font, sound
 # tables, instruction text AND the authentic level designs (d2/C*.txt, converted
@@ -18,7 +19,7 @@ ifdef ENDING_TEST
 LCCFLAGS_EXTRA += -DENDING_TEST=1
 endif
 
-LCCFLAGS  := -Wm-yc -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size $(LCCFLAGS_EXTRA)
+LCCFLAGS  := -Wm-yc -Wm-yn"$(TITLE)" -Wl-yt0x1B -Wl-yo16 -Wl-ya4 -DCGB -I$(SRCDIR) -Wf--opt-code-size $(LCCFLAGS_EXTRA)
 LINKFLAGS := $(LCCFLAGS) -autobank
 # board.c is one huge translation unit (GNU Robbo's 940-line update_game, split
 # into upd_g1..g5): cap SDCC register allocation so it compiles in ~1min.
