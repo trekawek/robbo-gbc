@@ -93,7 +93,7 @@ def byte_to_cell(b):
         return Cell('}', [3, d2, 0, 1, 0, 0])          # fire N, movable
     if b in (0x0F, 0x11): return Cell('=', [0])        # ZAPO force field -> barrier row
     if b == 0x5C: return Cell('O', [9])               # normal-palette wall glyph $00
-    if b == 0x06: return Cell('O', [10])              # normal-palette glyph $4E
+    if b == 0x06: return Cell('~')                    # inertial crate (TBEZ / BEZS)
     if b == 0x05: return Cell('O')                    # inverse wall (ZAPEND)
     if b in (0x5B, 0x5D): return Cell('.')             # transient laser beam segment
     return Cell('.')                                   # unknown -> empty (logged)

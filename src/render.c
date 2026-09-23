@@ -90,7 +90,7 @@ static const unsigned char type2asc[71] = {
     [LITTLE_BOOM]=0x61, [GROUND]=0x25, [WALL_GREEN]=0xA0, [BEAR_B]=0x45,
     [BUTTERFLY]=0x26, [LASER_L]=0x5D, [LASER_D]=0x5B, [SOLID_LASER_L]=0x5D,
     [SOLID_LASER_D]=0x5B, [TELEPORT]=0x30, [TELEPORTING]=0x69, [BIG_BOOM]=0x61,
-    [GUN]=0x2C, [MAGNET]=0x28, [BLASTER]=0x1C, [BLACK_WALL]=0xA0, [PUSH_BOX]=0x23,
+    [GUN]=0x2C, [MAGNET]=0x28, [BLASTER]=0x1C, [BLACK_WALL]=0xA0, [PUSH_BOX]=0x06,
     [BARRIER]=0x0F, [FAT_WALL]=0xA0, [ROUND_WALL]=0xA0, [BOULDER_WALL]=0xA0,
     [SQUARE_WALL]=0xA0, [LATTICE_WALL]=0xA0, [RADIOACTIVE_FIELD]=0x25, [STOP]=0x18,
     [BOMB2]=0x40,
@@ -172,10 +172,9 @@ static void cell_tiles(const struct object *p, unsigned char cx, unsigned char c
     } else if (t == WALL) {
         base = 0;                                    /* wall glyph 0 (wall_chars) */
         /* `┼` maps to glyph $42, filled with pixel value 1 (COLPF0).
-           Atari also has normal-palette wall and crate-shaped wall glyphs. */
+           Atari also has a normal-palette wall glyph. */
         pal = (p->state == 3) ? PAL_BLACKFILL : 1;
         if (p->state == 9) pal = 0;
-        if (p->state == 10) { base = 0x4E; pal = 0; }
     } else {
         /* Atari colour model: a cell uses the level's normal (0) or inverse (1)
            palette purely by the glyph's inverse bit - no semantic per-type tint. */

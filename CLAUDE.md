@@ -152,10 +152,12 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   a fresh config. GTIA ignores bit 0. Each RGB channel is rounded with
   `(v*31+127)/255`, then packed as BGR555; the title rainbow uses the same table.
   See `docs/pal-colors.md` for reproduction and emulator colour-profile limits.
-- **Normal/inverse colour variants survive level conversion.** WALL states 9 and 10
-  select normal-palette glyphs $00 and $4E respectively. Other visible walls are
-  inverse; state 3 is solid cave fill. Nonshooting birds are normal; shooting birds
-  and moving guns are inverse. Preserve these flags when moving objects.
+- **Normal/inverse colour variants survive level conversion.** WALL state 9
+  selects normal-palette glyph $00. Atari `╱` ($06) is an inertial crate, mapped
+  to PUSH_BOX with normal-palette glyph $4E in both resting and moving states.
+  Other visible walls are inverse; state 3 is solid cave fill. Nonshooting birds
+  are normal; shooting birds and moving guns are inverse. Preserve these flags
+  when moving objects.
 - **Exit colour flash runs in the camera VBlank handler.** `level.now_is_blinking`
   is a pending request from `open_exit`; the handler clears it and changes only
   palette 0/1 entry 0 for four GBC frames, then restores the cached level floor.

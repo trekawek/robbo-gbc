@@ -1,4 +1,4 @@
-"""Cannon conversion regression; run with python3 tools/test_convert_atari_levels.py."""
+"""Level conversion regressions; run with python3 tools/test_convert_atari_levels.py."""
 import unittest
 
 from convert_atari_levels import H, W, atari_level_to_dat, byte_to_cell
@@ -35,6 +35,19 @@ class CannonConversionTest(unittest.TestCase):
             self.assertEqual(grid[y][1:3], "}#")
             self.assertEqual(grid[y][5:13], "H" * 8)
             self.assertEqual(grid[y][14], "T")
+
+
+class PushBoxConversionTest(unittest.TestCase):
+    def test_level29_sliding_boxes(self):
+        # The striped crates open the route from spawn and the exit approach.
+        # Atari TBEZ pushes byte $06; BEZS returns a stopped crate to $06.
+        rows = [" " * W for _ in range(H)]
+        rows[2] = "█K         ╱ * █"
+        rows[27] = "█ • @@@@     ╱ █"
+        grid, additional = atari_level_to_dat(rows, 29)
+        self.assertEqual(grid[2], "O^.........~.R.O")
+        self.assertEqual(grid[27], "O.!.bbbb.....~.O")
+        self.assertEqual(additional, [(1, 2, "^", [3, 0, 0])])
 
 
 if __name__ == "__main__":

@@ -69,12 +69,17 @@ java --class-path "$CAMERA_TEST_CP" tools/CameraTest.java build/robbo.gbc
 It checks scrolling in all four directions, reversals, level bounds, vertical map wrapping,
 and that scroll registers only change outside the visible frame.
 
-Cannon conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
+Level conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
 With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"
 tools/CannonTest.java build/robbo.gbc` checks level 22's three left-hand cannons.
 It verifies right-facing blasters, then removes their blocking boxes to isolate
 firing behavior and checks that all three clear debris while preserving screws.
 The same test verifies the projectile-head and animated blast-trail tiles.
+
+With the same classpath and linker symbols, `java --class-path "$CAMERA_TEST_CP"
+tools/PushBoxTest.java build/robbo.gbc` checks level 29's striped sliding boxes,
+including pushing with the D-pad, continued movement after release and stopping
+at obstacles while preserving their appearance.
 
 All 15 sound effects can be recorded and checked against the Atari tables with
 `make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its

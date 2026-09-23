@@ -21,7 +21,7 @@ colour so the HUD and title use the same PAL conversion as the playfield.
 | Plain birds (`I`–`L`) | Normal palette, previously inverse | 79 birds across 26 levels |
 | Moving guns (`$0D/$0E`) | Inverse palette, previously normal | 8 guns in levels 45, 46, 47, 48, 50, 51 |
 | Normal walls (`\`) | Normal palette with wall glyph `$00`, previously inverse | 139 source cells |
-| Diagonal source character (`╱`) | Normal palette with glyph `$4E`, previously an inverse wall glyph | 22 source cells; existing wall collision behavior retained |
+| Sliding crates (`╱`) | Normal palette with glyph `$4E`, both stationary and moving; loaded as push boxes | 22 crates across levels 29, 30, 31, 33, 39 and 42 |
 | Status line | COLBK background; foreground uses COLBK's hue with luminance `$A`, previously fixed white on black | All 56 levels |
 | Exit opening | `WYZA` briefly flashes COLB to `$0F`; restore the level floor afterward | Previously missing; only normal/inverse entry 0 changes |
 | Title rainbow | Standard PAL reference table, replacing the separate approximate NTSC conversion | All 15 animated hues |
