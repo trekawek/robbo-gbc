@@ -34,7 +34,8 @@ explodes; you respawn and try again.
 | Hold B | Live overview: see the full room width and 16 rows at once; movement and firing still work |
 | Start | Begin game (title screen) · in-game opens the pause menu |
 
-The pause menu offers **Resume**, **Restart**, **Warp** (jump to any level) and **Quit**.
+The pause menu offers **Resume**, **Restart**, **Warp** (jump to any level),
+**Outro** (watch the ending and return to the current level), and **Quit**.
 HUD (bottom two rows): screws left · keys · ammo · level. The pause menu shows your score.
 Release B to return to the normal view. The overview uses compact 8×8 cells and follows
 Robbo vertically, so you can watch distant hazards while timing a move or a shot.
@@ -82,6 +83,10 @@ to the normal view, pause/resume and restart. It compares gameplay timing with a
 the overview, including walking up and down through the view, and checks for lost engine
 ticks and incorrectly shifted rows. Keep the matching `glue.sym` beside `robbo.noi`.
 Native screenshots without LCD colour correction are saved in `build/overview-captures/`.
+
+`java --class-path "$CAMERA_TEST_CP" tools/OutroTest.java build/robbo.gbc
+build/robbo.noi` checks the pause-menu outro, ending screen, and return to the
+same level with progress intact.
 
 Level conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
 With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"

@@ -271,7 +271,7 @@ void menu_palette(void) __banked {
     set_bkg_palette(MENU_PAL, 1, mp);
 }
 
-/* 0=resume, 1=restart level, 2=warp, 3=quit to title */
+/* 0=resume, 1=restart level, 2=warp, 3=preview outro, 4=quit to title */
 unsigned char pause_gr(void) __banked {
     unsigned char sel = 0, x, y, keys, prev = 0xFF, ct[16];
     snd_stop();
@@ -280,22 +280,23 @@ unsigned char pause_gr(void) __banked {
     VBK_REG = 0; set_bkg_data(CURSOR_TILE, 1, ct);
     for (y = 0; y < 18; y++) for (x = 0; x < 20; x++) mw(x, y, 0x40);
     mw_str(7, 2, "PAUSED");
-    mw_str(7, 5, "SCORE");
-    mw_score(7, 6, gr_score);
-    mw_str(6, 10, "RESUME");
-    mw_str(6, 12, "RESTART");
-    mw_str(6, 14, "WARP");
+    mw_str(7, 4, "SCORE");
+    mw_score(7, 5, gr_score);
+    mw_str(6, 8, "RESUME");
+    mw_str(6, 10, "RESTART");
+    mw_str(6, 12, "WARP");
+    mw_str(6, 14, "OUTRO");
     mw_str(6, 16, "QUIT");
     WX_REG = 7; WY_REG = 0;            /* window covers the whole screen */
     SHOW_WIN;
     waitpadup();
     while (1) {
-        for (y = 10; y <= 16; y += 2) mw(4, y, 0x40);
-        mw(4, 10 + sel * 2, CURSOR_TILE);
+        for (y = 8; y <= 16; y += 2) mw(4, y, 0x40);
+        mw(4, 8 + sel * 2, CURSOR_TILE);
         wait_vbl_done();
         keys = joypad();
         if ((keys & J_UP)   && !(prev & J_UP)   && sel)     sel--;
-        if ((keys & J_DOWN) && !(prev & J_DOWN) && sel < 3) sel++;
+        if ((keys & J_DOWN) && !(prev & J_DOWN) && sel < 4) sel++;
         if ((keys & (J_A | J_START)) && !(prev & (J_A | J_START))) { waitpadup(); return sel; }
         prev = keys;
     }
