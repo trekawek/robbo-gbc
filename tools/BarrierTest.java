@@ -1,10 +1,10 @@
-/* Level 52 Atari barricade direction regression (Coffee GB core).
+/* Level 52 Atari barricade hit and direction regression (Coffee GB core).
  *
  * java --class-path "$COLOR_TEST_CP" tools/BarrierTest.java ROM.gbc ROM.noi
  * The ROM and linker symbols must come from the same build.
  *
- * The original ZAPO routine rotates its $0F segments left. Remove one
- * segment from the loaded board and check that the gap moves left as well.
+ * Check that the first shot into a solid run explodes, then remove one
+ * segment and check that the resulting gap moves left as on Atari.
  */
 import eu.rekawek.coffeegb.core.Gameboy;
 import eu.rekawek.coffeegb.core.GameboyType;
@@ -25,11 +25,11 @@ import java.util.regex.Pattern;
 @SuppressWarnings("deprecation")
 public class BarrierTest implements AutoCloseable {
     private static final int HEIGHT = 31, CELL_BYTES = 14;
-    private static final int EMPTY = 0, WALL = 2, BARRIER = 61, WEST = 2;
+    private static final int EMPTY = 0, WALL = 2, BIG_BOOM = 42, BARRIER = 61, WEST = 2;
     private final EventBus bus = new EventBusImpl();
     private final Gameboy gb;
     private final Map<String, Integer> symbols = new HashMap<>();
-    private final int board, currentBank, update;
+    private final int board, robbo, currentBank, update;
     private long ticks;
 
     private BarrierTest(Path rom, Path noi) throws Exception {
@@ -40,6 +40,7 @@ public class BarrierTest implements AutoCloseable {
                 symbols.put(match.group(1), Integer.parseInt(match.group(2), 16));
         }
         board = symbol("_board");
+        robbo = symbol("_robbo");
         currentBank = symbol("__current_bank");
         update = symbol("_update_game");
         gb = new Gameboy.GameboyConfiguration(rom.toFile())
@@ -81,7 +82,7 @@ public class BarrierTest implements AutoCloseable {
         until(() -> at(address));
     }
 
-    private void run() {
+    private void loadLevel52() {
         gb.runTicks(5_000_000);
         ticks += 5_000_000;
         bus.post(new ButtonPressEvent(Button.START));
@@ -91,6 +92,42 @@ public class BarrierTest implements AutoCloseable {
         next(symbol("_level_init"));
         putWord(symbol("_level_packs") + 4, 52);
         next(update);
+    }
+
+    private void firstShot() {
+        loadLevel52();
+        check(b(cell(7, 14)) == EMPTY && b(cell(7, 13)) == BARRIER,
+                "first-shot fixture is blocked");
+        putWord(robbo, 7);
+        putWord(robbo + 2, 14);
+        putWord(robbo + 14, 1); // one bullet, aimed up at the solid barricade
+        putWord(robbo + 18, 0);
+        bus.post(new ButtonPressEvent(Button.A));
+        bus.post(new ButtonPressEvent(Button.UP));
+        int explosionStates = 0;
+        for (int tick = 0; tick < 8; tick++) {
+            next(update);
+            for (int x = 3; x <= 12; x++)
+                if (b(cell(x, 13)) == BIG_BOOM)
+                    explosionStates |= 1 << b(cell(x, 13) + 2);
+        }
+        bus.post(new ButtonReleaseEvent(Button.UP));
+        bus.post(new ButtonReleaseEvent(Button.A));
+        check(b(robbo + 14) == 0, "Robbo did not fire into the barricade");
+        check(Integer.bitCount(explosionStates) >= 2,
+                "first barricade hit never animated its explosion");
+        boolean openedGap = false;
+        for (int tick = 0; tick < 12; tick++) {
+            next(update);
+            for (int x = 3; x <= 12; x++)
+                openedGap |= b(cell(x, 13)) == EMPTY;
+        }
+        check(openedGap, "barricade did not resume after the explosion");
+        System.out.println("PASS level 52 first barricade hit animates its explosion");
+    }
+
+    private void run() {
+        loadLevel52();
 
         check(b(cell(2, 13)) == WALL && b(cell(13, 13)) == WALL,
                 "level 52 barricade is not bounded by walls");
@@ -130,6 +167,9 @@ public class BarrierTest implements AutoCloseable {
     public static void main(String[] args) throws Exception {
         if (args.length != 2)
             throw new IllegalArgumentException("Usage: BarrierTest ROM.gbc ROM.noi");
+        try (BarrierTest test = new BarrierTest(Path.of(args[0]), Path.of(args[1]))) {
+            test.firstShot();
+        }
         try (BarrierTest test = new BarrierTest(Path.of(args[0]), Path.of(args[1]))) {
             test.run();
         }

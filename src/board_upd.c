@@ -159,7 +159,7 @@ int upd_g1(int x, int y) __banked
 int upd_g2(int x, int y) __banked
 {
     int x_tmp, flag, temp_state = 0, temp_blowed = 0, temp_direction = 0, i;
-    int blo, bhi, bsolid;
+    int blo, bhi, bsolid, bexplosion;
     struct Coords dest;
     /* A lone wrapping barrier can reach the flag branch without a move. */
     dest.x = 0; dest.y = 0;
@@ -181,11 +181,24 @@ int upd_g2(int x, int y) __banked
 			while (bhi < level.w - 1 && board[bhi + 1][y].type != WALL)
 			    bhi++;
 			bsolid = 1;
-			for (i = blo; i <= bhi; i++)
-			    if (board[i][y].type != BARRIER) {
+			bexplosion = 0;
+			for (i = blo; i <= bhi; i++) {
+			    if (board[i][y].type == BIG_BOOM || board[i][y].type == LITTLE_BOOM)
+				bexplosion = 1;
+			    if (board[i][y].type != BARRIER || board[i][y].blowed) {
+				/* A first hit leaves the segment in the run until
+				   check_object_if_blowed() creates its explosion. */
 				bsolid = 0;
-				break;
 			    }
+			}
+			if (bexplosion) {
+			    /* The rotating wave would overwrite the blast cell before
+			       its later frames draw. Hold the segments until it clears. */
+			    for (i = blo; i <= bhi; i++)
+				if (board[i][y].type == BARRIER)
+				    SET_MOVED(i, y, DELAY_BARRIER);
+			    break;
+			}
 			if (bsolid) {
 			    if (robbo.y == y && robbo.x >= blo && robbo.x <= bhi) {
 				kill_robbo();
