@@ -31,10 +31,14 @@ explodes; you respawn and try again.
 |--------|--------|
 | D-pad | Move Robbo (walk, collect items, push boxes) |
 | A + D-pad | Fire a bullet in that direction (uses ammo) |
+| Hold B | Live overview: see the full room width and 16 rows at once; movement and firing still work |
 | Start | Begin game (title screen) · in-game opens the pause menu |
 
 The pause menu offers **Resume**, **Restart**, **Warp** (jump to any level) and **Quit**.
 HUD (bottom two rows): screws left · keys · ammo · level. The pause menu shows your score.
+Release B to return to the normal view. The overview uses compact 8×8 cells and follows
+Robbo vertically, so you can watch distant hazards while timing a move or a shot.
+Opening it takes about 0.1 seconds; once it appears, game timing matches the normal view.
 
 ## Build
 
@@ -69,6 +73,15 @@ java --class-path "$CAMERA_TEST_CP" tools/CameraTest.java build/robbo.gbc
 
 It checks scrolling in all four directions, reversals, level bounds, vertical map wrapping,
 and that scroll registers only change outside the visible frame.
+
+With the same classpath, `java --class-path "$CAMERA_TEST_CP" tools/OverviewTest.java
+build/robbo.gbc build/robbo.noi` checks the live B overview in level 56. It verifies that
+Robbo and the two distant birds appear together, the birds keep moving, and B+A+Up
+fires the last bullet into the upper bomb. It also checks camera bounds, the HUD, return
+to the normal view, pause/resume and restart. It compares gameplay timing with and without
+the overview, including walking up and down through the view, and checks for lost engine
+ticks and incorrectly shifted rows. Keep the matching `glue.sym` beside `robbo.noi`.
+Native screenshots without LCD colour correction are saved in `build/overview-captures/`.
 
 Level conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
 With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"

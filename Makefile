@@ -37,7 +37,7 @@ ATARIDAT  := $(GENDIR)/atari_levels.dat
 
 HAND := $(SRCDIR)/globals.c $(SRCDIR)/glue.c $(SRCDIR)/render.c $(SRCDIR)/loader.c \
         $(SRCDIR)/hud.c $(SRCDIR)/atari_pal.c $(SRCDIR)/menu.c \
-        $(SRCDIR)/ending.c $(SRCDIR)/object_tables.c $(SRCDIR)/sound.c
+        $(SRCDIR)/ending.c $(SRCDIR)/object_tables.c $(SRCDIR)/sound.c $(SRCDIR)/overview.c
 SRCS := $(HAND) $(LEVELS) $(GFX)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS))) \
         $(BUILD)/board.o $(BUILD)/board_upd.o $(BUILD)/board_robbo.o
@@ -94,6 +94,8 @@ $(BUILD)/gfx_tiles.o: $(GFX) | $(BUILD)
 
 # generated-header dependencies (so these .o rebuild when assets regenerate)
 $(BUILD)/render.o: $(GFXH)
+$(BUILD)/render.o $(BUILD)/glue.o $(BUILD)/overview.o: $(SRCDIR)/render.h
+$(BUILD)/glue.o $(BUILD)/overview.o: $(SRCDIR)/game.h
 $(BUILD)/menu.o:   $(INSTRH)
 $(BUILD)/sound.o:  $(SOUNDH)
 $(BUILD)/sound.o $(BUILD)/glue.o $(BUILD)/menu.o $(BUILD)/ending.o: $(SRCDIR)/sound.h

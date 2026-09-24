@@ -12,15 +12,8 @@
 #endif
 #include "levels_data.h"
 #include "sound.h"
+#include "render.h"
 
-void render_gr_init(void);
-void render_gr_load(void);
-void render_gr_camera(void);
-void render_gr_vblank(void);
-void render_gr_camera_pause(void);
-void render_gr_camera_resume(void);
-void render_gr_anim(void);
-void render_gr_robbo(void);
 void hud_gr_init(void) __banked;
 void hud_gr_draw(void) __banked;
 void render_gr_logo(void);
@@ -194,6 +187,10 @@ void main(void) {
            is committed separately by the VBlank handler, never mid-scanline. */
         /* board cells + HUD only change on a game tick, so repaint them only
            then (not every frame) - this was the bulk of the render cost. */
+        keys = joypad();
+        /* Build the live overview before the normal renderer consumes the
+           board's redraw flags. B changes only the view, not the tick clock. */
+        overview_gr_update((keys & J_B) != 0);
         if (need_render) {
 #if !(PROF & 2)
             show_game_area(); hud_gr_draw();

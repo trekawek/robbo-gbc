@@ -14,6 +14,7 @@ Outputs:
   robbo_chars[4]    robbo facet chars (S.FNT 8,9,40,41) -> overlay 0x5E,0x5F,0x7E,0x7F
   wall_chars[16*4]  per level-group wall chars (from M.FNT) -> overlay 0,1,0x20,0x21
   ifnt_tiles[64]    HUD text font (from I.FNT, Atari-internal order)
+  overview_*       complete metatiles reduced to one 8x8 tile for the live overview
 """
 import sys, os
 
@@ -34,6 +35,32 @@ def char_tile(ch):
                 bit = 7 - (c*2 + d)
                 if v & 1: lo |= 1 << bit
                 if v & 2: hi |= 1 << bit
+        out.append(lo); out.append(hi)
+    return bytes(out)
+
+def overview_tile(chars):
+    """One 8x8 tile from mode-4 chars in TL, TR, BL, BR order.
+
+    Each Atari colour-cell becomes one horizontal pixel.  Combine each pair
+    of scanlines vertically, retaining the first line's foreground and filling
+    its background gaps from the second.  Plain nearest-neighbour reduction
+    loses one-scanline details (bird wings, bomb fuses, wall bevels); choosing
+    the brighter pixel instead erases Robbo's dark eyes.  This keeps those
+    details while preserving the original four colour indices.
+    """
+    out = bytearray()
+    for row in range(8):
+        lo = hi = 0
+        y = row * 2
+        for x in range(8):
+            ch = chars[(y // 8) * 2 + x // 4]
+            shift = 6 - (x % 4) * 2
+            v = (ch[y % 8] >> shift) & 3
+            if not v:
+                v = (ch[y % 8 + 1] >> shift) & 3
+            bit = 7 - x
+            if v & 1: lo |= 1 << bit
+            if v & 2: hi |= 1 << bit
         out.append(lo); out.append(hi)
     return bytes(out)
 
@@ -123,6 +150,13 @@ def main():
         if 28 <= c <= 31 or 60 <= c <= 63: return s[c]
         return f[c]
     font = [char_tile(font_src(c)) for c in range(128)]
+    # Keep the Atari metatile base as the overview tile index, so both render
+    # modes can share LOOK.  Odd indices and the lower metatile halves are
+    # unused; blank entries preserve this direct mapping.
+    overview = [bytes(16) for _ in range(128)]
+    for base in range(128):
+        if not (base & 0x21):
+            overview[base] = overview_tile([font_src(base | c) for c in (0, 1, 32, 33)])
 
     # robbo directional facets, in gs.facing order (0=up 1=down 2=left 3=right).
     # The original FACET routine (R1.ASM) maps the joystick (UP=bit0,DOWN=1,
@@ -138,10 +172,12 @@ def main():
     # so the renderer animates Robbo's stride as he steps cell to cell.  Layout:
     # facet (dir*2 + frame), each = 4 tiles TL,TR,BL,BR.
     robbo = []
+    overview_robbo = []
     for tl, tr, bl, br in ROBBO_FACETS:
         for fr in (0, 64):
             robbo += [char_tile(s[tl + fr]), char_tile(s[tr + fr]),
                       char_tile(s[bl + fr]), char_tile(s[br + fr])]
+            overview_robbo.append(overview_tile([s[c + fr] for c in (tl, tr, bl, br)]))
 
     # animated glyph chars.  The original CHNMON (R1.ASM) re-copies FONT chars
     # 10-21 (+42-53 in the inverse half) and 28-31 (+60-63) from S.FNT every 2
@@ -154,10 +190,17 @@ def main():
     ANIM = list(range(10, 22)) + list(range(42, 54)) + list(range(28, 32)) + list(range(60, 64))
     anim_a = [char_tile(s[asrc0(c)]) for c in ANIM]
     anim_b = [char_tile(s[asrc0(c) + 64]) for c in ANIM]
+    OVERVIEW_ANIM = sorted({c & ~0x21 for c in ANIM})
+    overview_anim_a = [overview_tile([s[asrc0(base | c)] for c in (0, 1, 32, 33)])
+                       for base in OVERVIEW_ANIM]
+    overview_anim_b = [overview_tile([s[asrc0(base | c) + 64] for c in (0, 1, 32, 33)])
+                       for base in OVERVIEW_ANIM]
     walls = []
+    overview_walls = []
     for g in range(16):
         for c in (g*2, g*2+1, g*2+32, g*2+33):          # chars 0,1,0x20,0x21 per group
             walls.append(char_tile(m[c]))
+        overview_walls.append(overview_tile([m[g*2+c] for c in (0, 1, 32, 33)]))
     hud = [mono_tile(i[c]) for c in range(96)]           # text + status icons (mode-2)
 
     # title logo: authentic 'RoDDo' bitmap reproduced from TITLE.ASM (sim_logo),
@@ -183,6 +226,7 @@ def main():
         h.write("#define FONT_NTILES 128\n")
         h.write("#define WALL_NGROUPS 16\n")
         h.write("#define ANIM_NCHARS %d\n" % len(ANIM))
+        h.write("#define OVERVIEW_ANIM_NCHARS %d\n" % len(OVERVIEW_ANIM))
         h.write("#define LOGO_TW %d\n" % logo_tw)
         h.write("#define LOGO_TH %d\n" % logo_th)
         h.write("#define LOGO_NTILES %d\n" % (logo_tw * logo_th))
@@ -198,6 +242,12 @@ def main():
         h.write("extern const unsigned char anim_a[];\n")
         h.write("extern const unsigned char anim_b[];\n")
         h.write("extern const unsigned char anim_slots[];\n")
+        h.write("extern const unsigned char overview_tiles[];\n")
+        h.write("extern const unsigned char overview_robbo[];\n")
+        h.write("extern const unsigned char overview_walls[];\n")
+        h.write("extern const unsigned char overview_anim_a[];\n")
+        h.write("extern const unsigned char overview_anim_b[];\n")
+        h.write("extern const unsigned char overview_anim_slots[];\n")
         h.write("extern const unsigned char logo_tiles[];\n")
         h.write("extern const unsigned int logo_rainbow[LOGO_RAINBOW_N][4];\n")
         h.write("extern const unsigned char ending_tiles[];\n")
@@ -215,6 +265,13 @@ def main():
         emit(c, "anim_b", anim_b)
         c.write("const unsigned char anim_slots[%d] = {" % len(ANIM)
                 + ",".join("0x%02X" % v for v in ANIM) + "};\n")
+        emit(c, "overview_tiles", overview)
+        emit(c, "overview_robbo", overview_robbo)
+        emit(c, "overview_walls", overview_walls)
+        emit(c, "overview_anim_a", overview_anim_a)
+        emit(c, "overview_anim_b", overview_anim_b)
+        c.write("const unsigned char overview_anim_slots[%d] = {" % len(OVERVIEW_ANIM)
+                + ",".join("0x%02X" % v for v in OVERVIEW_ANIM) + "};\n")
         emit(c, "logo_tiles", logo)
         emit(c, "ending_tiles", ending)
         c.write("const unsigned int logo_rainbow[%d][4] = {\n" % rainbow_n)
@@ -222,7 +279,13 @@ def main():
             c.write("  {" + ",".join("0x%04X" % v for v in pal) + "},\n")
         c.write("};\n")
         c.write("BANKREF(gfx)\n")               # bank-number symbol for GFX_BANK
-    print(f"gfx: font={len(font)} robbo={len(robbo)//4}facets walls={len(walls)} hud={len(hud)} -> {outdir}/gfx_tiles.[ch]")
+    total = sum(len(t) * 16 for t in (font, robbo, walls, hud, anim_a, anim_b,
+                                    overview, overview_robbo, overview_walls,
+                                    overview_anim_a, overview_anim_b, logo, ending))
+    total += len(ANIM) + len(OVERVIEW_ANIM) + rainbow_n * 8
+    if total > 16384:
+        raise ValueError(f"graphics need {total} bytes, exceeding one 16 KiB ROM bank")
+    print(f"gfx: font={len(font)} robbo={len(robbo)//4}facets walls={len(walls)} hud={len(hud)} overview={len(overview)} bank={total}/16384 bytes -> {outdir}/gfx_tiles.[ch]")
 
 if __name__ == "__main__":
     main()

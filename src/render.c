@@ -4,6 +4,7 @@
 #include <gb/gb.h>
 #include <gb/cgb.h>
 #include "game.h"
+#include "render.h"
 #include "gen/gfx_tiles.h"
 
 /* LOOK: ATASCII object byte -> Atari screen code (low7=glyph, bit7=inverse). */
@@ -25,7 +26,8 @@ BANKREF_EXTERN(gr_atari_pal)
 #define MAX_SCX_(w) (((w) * 16) - VIEW_W)
 #define MAX_SCY_(h) (((h) * 16) - PLAYH)
 
-static unsigned char slot_owner[16];
+unsigned char slot_owner[16];
+volatile unsigned char gr_overview_active;
 static int scx_abs, scy_abs;
 static int max_scx, max_scy;
 /* Q4 positions keep the last few pixels of a camera move from snapping.
@@ -74,11 +76,25 @@ void render_gr_vblank(void) {
     }
     camera_x = camera_ease(camera_x, camera_tx);
     camera_y = camera_ease(camera_y, camera_ty);
-    SCX_REG = (unsigned char)(camera_x >> 4);
-    SCY_REG = (unsigned char)(camera_y >> 4);
+    gr_overview_active = gr_overview_requested;
+    if (gr_overview_active) {
+        LCDC_REG |= 0x08;     /* overview in the second background map */
+        SCX_REG = 0;
+        SCY_REG = 16;         /* reserve its first two rows for the HUD */
+    } else {
+        LCDC_REG &= (unsigned char)~0x08;
+        SCX_REG = (unsigned char)(camera_x >> 4);
+        SCY_REG = (unsigned char)(camera_y >> 4);
+    }
 }
 
-void render_gr_camera_pause(void) { camera_active = 0; }
+void render_gr_camera_pause(void) {
+    overview_gr_reset();
+    /* Menus reuse the overview map. Return to the normal map in VBlank
+       before the menu starts drawing into it. */
+    if (gr_overview_active) wait_vbl_done();
+    camera_active = 0;
+}
 void render_gr_camera_resume(void) { camera_active = 1; }
 
 /* gnu-robbo type -> ATASCII object byte (rendered via LOOK).  WALL handled
@@ -153,7 +169,7 @@ static unsigned char cell_pal(unsigned char t) {
     }
 }
 
-static void cell_tiles(const struct object *p, unsigned char cx, unsigned char cy,
+void render_gr_cell_tiles(const struct object *p, unsigned char cx, unsigned char cy,
                        unsigned char *tt, unsigned char *aa) {
     unsigned char t = p->type;
     unsigned char base, pal;
@@ -193,14 +209,16 @@ static void write_row(unsigned char r) {
     unsigned char my = (unsigned char)((r & 15) * 2);
     const struct object *p = &board[0][r];
     for (cx = 0; cx < (unsigned char)level.w; cx++, p += MAX_H) {
-        cell_tiles(p, cx, r, t, a);
+        render_gr_cell_tiles(p, cx, r, t, a);
         tbuf[cx*2]=t[0]; tbuf[cx*2+1]=t[1];
         tbuf[32+cx*2]=t[2]; tbuf[32+cx*2+1]=t[3];
         abuf[cx*2]=a[0]; abuf[cx*2+1]=a[1];
         abuf[32+cx*2]=a[2]; abuf[32+cx*2+1]=a[3];
     }
-    set_bkg_tiles(0, my, 32, 2, tbuf);
-    set_bkg_attributes(0, my, 32, 2, abuf);
+    set_tiles(0, my, 32, 2, (unsigned char *)0x9800, tbuf);
+    VBK_REG = 1;
+    set_tiles(0, my, 32, 2, (unsigned char *)0x9800, abuf);
+    VBK_REG = 0;
     slot_owner[r & 15] = r;
 }
 
@@ -236,6 +254,9 @@ void render_gr_robbo(void) {
         SWITCH_ROM(GFX_BANK);
         set_bkg_data(ROBBO_TL, 2, robbo_chars + (unsigned int)facet * 64);
         set_bkg_data(ROBBO_BL, 2, robbo_chars + (unsigned int)facet * 64 + 32);
+        VBK_REG = 1;
+        set_bkg_data(ROBBO_TL, 1, overview_robbo + (unsigned int)facet * 16);
+        VBK_REG = 0;
     }
 }
 
@@ -252,6 +273,10 @@ void render_gr_init(void) {
     set_bkg_data(128, 96, ifnt_tiles);          /* I.FNT digits/icons for the HUD */
     set_bkg_data(ROBBO_TL, 2, &robbo_chars[2*64]);
     set_bkg_data(ROBBO_BL, 2, &robbo_chars[2*64 + 32]);
+    VBK_REG = 1;
+    set_bkg_data(0, FONT_NTILES, overview_tiles);
+    set_bkg_data(ROBBO_TL, 1, &overview_robbo[2*16]);
+    VBK_REG = 0;
 }
 
 /* Load the title logo into tiles 0..LOGO_NTILES-1 (over the playfield font).
@@ -292,6 +317,9 @@ void render_gr_load(void) {
        from (the authentic Atari colours, replacing the old semantic scheme). */
     unsigned char idx = level_packs[selected_pack].level_selected;
     camera_active = 0;       /* LCD is off; discard any previous level's motion */
+    overview_gr_reset();
+    gr_overview_active = 0;
+    LCDC_REG &= (unsigned char)~0x08;
     flash_frames = 0;
     if (idx < 1) idx = 1;
     if (idx > GR_NLEVELS) idx = GR_NLEVELS;
@@ -320,6 +348,9 @@ void render_gr_load(void) {
     if (g >= WALL_NGROUPS) g = 0;
     set_bkg_data(0,    2, &wall_chars[g*64]);
     set_bkg_data(0x20, 2, &wall_chars[g*64 + 32]);
+    VBK_REG = 1;
+    set_bkg_data(0, 1, &overview_walls[(unsigned int)g*16]);
+    VBK_REG = 0;
     for (i = 0; i < 16; i++) slot_owner[i] = 0xFF;
     max_scx = MAX_SCX_(level.w); if (max_scx < 0) max_scx = 0;
     max_scy = MAX_SCY_(level.h); if (max_scy < 0) max_scy = 0;
@@ -348,6 +379,13 @@ void render_gr_load(void) {
    whole-board viewport set in level_init() made every off-screen shot audible
    (the "constant cracking"); play_sound() now drops the QUIET (off-screen) ones. */
 static void set_sound_viewport(void) {
+    if (gr_overview_active) {
+        viewport.x = 0;
+        viewport.y = gr_overview_top;
+        viewport.w = level.w - 1;
+        viewport.h = 15;
+        return;
+    }
     viewport.x = scx_abs >> 4;
     viewport.y = scy_abs >> 4;
     viewport.w = ((scx_abs + VIEW_W - 1) >> 4) - viewport.x;
@@ -387,6 +425,17 @@ void render_gr_anim(void) {
     unsigned char i, start, end;
     start = (unsigned char)(batch * 6);
     if (start >= ANIM_NCHARS) {
+        /* Keep the compact copies in the spare tile bank in the same
+           animation phase as their full-size counterparts. */
+        if (batch == (ANIM_NCHARS + 5) / 6) {
+            SWITCH_ROM(GFX_BANK);
+            VBK_REG = 1;
+            for (i = 0; i < OVERVIEW_ANIM_NCHARS; i++)
+                set_bkg_data(overview_anim_slots[i], 1,
+                    (frame ? overview_anim_b : overview_anim_a) + (unsigned int)i * 16);
+            VBK_REG = 0;
+            batch++;
+        }
         if (frame == gr_anim_frame) return;
         /* Finish all uploads before starting a new frame, even if a busy room
            missed a flip. Restarting an unfinished batch could starve its tail. */
@@ -402,26 +451,6 @@ void render_gr_anim(void) {
     for (i = start; i < end; i++)
         set_bkg_data(anim_slots[i], 1, (frame ? anim_b : anim_a) + (unsigned int)i * 16);
     batch++;
-}
-
-/* show_game_area: repaint board cells whose redraw flag is set, then robbo.
-   Walk the board in its existing linear order, tracking byte-sized x/y instead
-   of dividing a linear index by MAX_H for every dirty cell.  Pass the current
-   object directly to cell_tiles so it need not calculate its address again. */
-int show_game_area(void) {
-    struct object *p = &board[0][0];
-    unsigned char t[4], a[4], x, y;
-    for (x = 0; x < MAX_W; x++) {
-        for (y = 0; y < MAX_H; y++, p++) {
-            if (!p->redraw) continue;
-            p->redraw = 0;
-            if (slot_owner[y & 15] != y) continue;
-            cell_tiles(p, x, y, t, a); /* Robbo's cell uses this same paint path. */
-            set_bkg_tiles(x*2, (y & 15)*2, 2, 2, t);
-            set_bkg_attributes(x*2, (y & 15)*2, 2, 2, a);
-        }
-    }
-    return 0;
 }
 
 int show_game_area_fade(int subfunction, int type) { (void)subfunction; (void)type; return 0; }

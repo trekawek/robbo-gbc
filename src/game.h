@@ -117,7 +117,7 @@ void my_srand(unsigned int seed);
 int  rand(void);
 int  abs(int v);
 void play_sound(int event, int vol);
-int  show_game_area(void);
+int  show_game_area(void) __banked;
 int  show_game_area_fade(int subfunction, int type);
 int  level_init(void);
 int  load_level_data(int level_number);
