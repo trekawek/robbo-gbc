@@ -103,6 +103,7 @@
 #define RADIOACTIVE_FIELD  68
 #define STOP 69
 #define BOMB2 70
+#define SCORE_BONUS 71  /* Atari extra-life glyph; awards points, not lives */
 
 #define MECHANIC_SENSIBLE_BEARS TRUE
 #define MECHANIC_SENSIBLE_QUESTIONMARKS TRUE

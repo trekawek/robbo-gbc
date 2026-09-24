@@ -59,6 +59,7 @@ static const unsigned char SFX2SND[] = {
     SND_MAGNET,   /* 14 SFX_MAGNET   */
     SND_CAPSULE,  /* 15 SFX_EXIT_OPEN */
     SND_KNOCK,    /* 16 SFX_KNOCK (bullet/laser hits a wall) */
+    SND_LIFE,     /* 17 SFX_BONUS (score bonus glyph) */
 };
 void play_sound(int event, int vol) {
     /* The engine emits world-event sounds (gun/bird/bomb/kill/box) as SND_NORM

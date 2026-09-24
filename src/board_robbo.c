@@ -87,6 +87,11 @@ move_robbo(int x, int y) __banked
 	scoreline.redraw |= SCORELINE_KEYS;
 	clear_field(x_tmp, y_tmp);
 	break;
+    case SCORE_BONUS:
+	play_sound(SFX_BONUS, SND_NORM);
+	gr_score += 200;           /* Atari's extra-life pickup awarded 200 points. */
+	clear_field(x_tmp, y_tmp);
+	break;
     case DOOR:			/* Robbo cannot move */
 	if (robbo.keys > 0) {	/* should open the door first */
 	    robbo.keys--;

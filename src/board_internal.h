@@ -14,7 +14,7 @@
    gr_act_type[t] != 0 for types that have a case in update_game's switch.
    Every assignment to .moved / .blowed goes through these setters so the cell
    is (re)activated; update_game clears inlist when a cell goes inert again. */
-extern const unsigned char gr_act_type[71];
+extern const unsigned char gr_act_type[72];
 /* Set a cell's moved/blowed delay and (re)activate it.  These live in HOME
    (board.c) and are called from the banked modules too - keeping them out of
    line stops the ~50 SET_MOVED sites in board_upd.c from overflowing its bank. */

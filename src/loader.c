@@ -48,7 +48,7 @@ int transform_char(char c)
     case 'P': return BOULDER_WALL;
     case 's': return SQUARE_WALL;
     case 'S': return LATTICE_WALL;
-    case '+': return EMPTY_FIELD;   /* extra life unsupported */
+    case '+': return SCORE_BONUS;
     case 'L': return LASER_L;
     case 'l': return LASER_D;
     default:  return EMPTY_FIELD;

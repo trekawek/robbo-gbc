@@ -56,7 +56,7 @@ def byte_to_cell(b):
     if b == 0x40: return Cell('b')                     # bomb
     if b == 0x3F: return Cell('?')                     # questionmark
     if b == 0x14: return Cell('!')                     # capsule
-    if b == 0x2B: return Cell('.')                     # extra life (unsupported)
+    if b == 0x2B: return Cell('+')                     # extra-life glyph -> score bonus
     if b == 0x26: return Cell('V')                     # chaser -> butterfly
     if 0x30 <= b <= 0x39:                              # teleport: Atari digit group is
         return Cell('&', [b - 0x30 + 1, 0])            # 0-based, gnu group is 1-BASED
@@ -118,7 +118,7 @@ def atari_level_to_dat(rows, num):
             ch = row[x] if x < len(row) else ' '
             b = to_byte(ch)
             c = byte_to_cell(b)
-            if c.ch == '.' and b not in (0x20, 0x2B):
+            if c.ch == '.' and b != 0x20:
                 unknown[ch] = unknown.get(ch, 0) + 1
             grid[y][x] = c
     # assign teleport ids per group in scan order

@@ -1,6 +1,6 @@
 /* GBC HUD for the gnu-robbo port: a window-layer status bar (bottom 2 rows)
    showing screws-left, keys, ammo and level.  Reads gnu-robbo's robbo/level_packs
-   state (no lives/score - gnu-robbo restarts the level on death).
+   state; the score appears in the pause menu, and death restarts the level.
 
    This is a switchable-bank module: every function is __banked (a non-__banked
    function in a bank corrupts).  The I.FNT tiles + HUD palette are loaded by

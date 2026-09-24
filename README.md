@@ -14,8 +14,9 @@ faithful open-source reimplementation — ported to the Game Boy Color, with the
 Robbo is a tile-based puzzle game. In each room you collect every **screw** to activate the exit
 **capsule**, then reach it — while pushing boxes, shooting bullets, opening **doors** with keys,
 using **teleports**, dodging **bombs**, **lasers** and **magnets**, and avoiding roaming
-**monsters** (bears, birds, butterflies). Touch a monster, a bomb blast or a wall you're forced
-into and the room explodes; you respawn and try again.
+**monsters** (bears, birds, butterflies). The original extra-life glyphs give 200 score points
+when collected. Touch a monster, a bomb blast or a wall you're forced into and the room
+explodes; you respawn and try again.
 
 - **Levels:** all 56 rooms converted from the original Atari level data.
 - **Logic:** GNU Robbo's `board.c` engine — objects, monsters, explosions, teleports, magnets,
@@ -33,7 +34,7 @@ into and the room explodes; you respawn and try again.
 | Start | Begin game (title screen) · in-game opens the pause menu |
 
 The pause menu offers **Resume**, **Restart**, **Warp** (jump to any level) and **Quit**.
-HUD (bottom two rows): screws left · keys · ammo · lives · level · score.
+HUD (bottom two rows): screws left · keys · ammo · level. The pause menu shows your score.
 
 ## Build
 
@@ -104,7 +105,7 @@ src/board_robbo.c    Robbo's own move/shoot logic (banked)
 src/glue.c           main loop: input, tick pacing, render scheduling, pause menu
 src/render.c         board -> tiles+palettes, the scrolling viewport, Robbo's facets
 src/loader.c         level load: board setup + per-level palette + tile/HUD init
-src/hud.c            window-layer HUD (screws/keys/ammo/lives/level/score)
+src/hud.c            window-layer HUD (screws/keys/ammo/level)
 src/menu.c           title screen + pause/warp menu (banked)
 src/atari_pal.c      the 56 authentic per-level Atari colour palettes (banked)
 src/globals.c        shared game state

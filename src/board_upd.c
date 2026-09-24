@@ -467,6 +467,7 @@ int upd_g3(int x, int y) __banked
 			    case BLASTER:
 			    case SCREW:
 			    case KEY:
+			    case SCORE_BONUS:
 			    case CAPSULE:
 				break;
 			    case BOMB:
@@ -921,6 +922,7 @@ int upd_g5(int x, int y) __banked
 				    case PUSH_BOX:
 				    case CAPSULE:
 				    case SCREW:
+				    case SCORE_BONUS:
 				    case STOP:
 				    case RADIOACTIVE_FIELD:
 				    case KEY:

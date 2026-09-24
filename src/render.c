@@ -83,7 +83,7 @@ void render_gr_camera_resume(void) { camera_active = 1; }
 
 /* gnu-robbo type -> ATASCII object byte (rendered via LOOK).  WALL handled
    specially (glyph 0 = the per-level wall char).  ROBBO drawn as an overlay. */
-static const unsigned char type2asc[71] = {
+static const unsigned char type2asc[72] = {
     [EMPTY_FIELD]=0x20, [ROBBO]=0x20, [WALL]=0xA0, [WALL_RED]=0xA0,
     [SCREW]=0x24, [BULLET]=0x21, [BOX]=0x23, [KEY]=0x3D, [BOMB]=0x40,
     [DOOR]=0x7C, [QUESTIONMARK]=0x3F, [BEAR]=0x41, [BIRD]=0x4D, [CAPSULE]=0x14,
@@ -93,7 +93,7 @@ static const unsigned char type2asc[71] = {
     [GUN]=0x2C, [MAGNET]=0x28, [BLASTER]=0x1C, [BLACK_WALL]=0xA0, [PUSH_BOX]=0x06,
     [BARRIER]=0x0F, [FAT_WALL]=0xA0, [ROUND_WALL]=0xA0, [BOULDER_WALL]=0xA0,
     [SQUARE_WALL]=0xA0, [LATTICE_WALL]=0xA0, [RADIOACTIVE_FIELD]=0x25, [STOP]=0x18,
-    [BOMB2]=0x40,
+    [BOMB2]=0x40, [SCORE_BONUS]=0x2B,
 };
 
 /* CGB palette categories (see render_gr_load) */
@@ -142,7 +142,7 @@ static unsigned char cell_pal(unsigned char t) {
     case WALL: case WALL_RED: case WALL_GREEN: case BLACK_WALL: case FAT_WALL:
     case ROUND_WALL: case BOULDER_WALL: case SQUARE_WALL: case LATTICE_WALL:
         return PAL_WALL;
-    case SCREW: case KEY: case BULLET:               return PAL_ITEM;
+    case SCREW: case KEY: case BULLET: case SCORE_BONUS: return PAL_ITEM;
     case BEAR: case BEAR_B: case BIRD: case BUTTERFLY: return PAL_MONST;
     case GUN: case LASER_L: case LASER_D: case SOLID_LASER_L: case SOLID_LASER_D:
     case BLASTER: case BOMB: case BOMB2: case MAGNET: case BARRIER:

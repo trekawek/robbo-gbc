@@ -52,7 +52,7 @@ int             is_robbo_killed(void);
 /* GBC perf: 1 for object types that have a case in update_game's switch (i.e.
    have per-cycle behaviour).  Cells of these types stay "active" (inlist=1);
    everything else is only active while it has a pending move/blow delay. */
-const unsigned char gr_act_type[71] = {
+const unsigned char gr_act_type[72] = {
     [BEAR] = 1, [BEAR_B] = 1, [BARRIER] = 1, [BIRD] = 1, [BUTTERFLY] = 1,
     [BLASTER] = 1, [CAPSULE] = 1, [LITTLE_BOOM] = 1, [LASER_L] = 1, [LASER_D] = 1,
     [BIG_BOOM] = 1, [RADIOACTIVE_FIELD] = 1, [TELEPORT] = 1, [TELEPORTING] = 1,
@@ -873,6 +873,7 @@ create_object(int x, int y, int type)
     case PUSH_BOX:
     case BOX:
     case KEY:
+    case SCORE_BONUS:
     case DOOR:
     case LASER_L:
     case LASER_D:

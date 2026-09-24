@@ -50,5 +50,14 @@ class PushBoxConversionTest(unittest.TestCase):
         self.assertEqual(additional, [(1, 2, "^", [3, 0, 0])])
 
 
+class ScoreBonusConversionTest(unittest.TestCase):
+    def test_extra_life_glyph_is_preserved(self):
+        rows = [" " * W for _ in range(H)]
+        rows[1] = "█*+$           █"
+        grid, additional = atari_level_to_dat(rows, 1)
+        self.assertEqual(grid[1], "OR+T...........O")
+        self.assertEqual(additional, [])
+
+
 if __name__ == "__main__":
     unittest.main()

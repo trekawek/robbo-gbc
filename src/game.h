@@ -49,6 +49,7 @@ typedef unsigned long Uint32;
 #define SFX_MAGNET 14
 #define SFX_EXIT_OPEN 15
 #define SFX_KNOCK 16
+#define SFX_BONUS 17
 /* music is unsupported on GBC: no-op like sound.h without HAVE_MUSIC */
 #define play_music()
 #define music_stop()
@@ -90,7 +91,7 @@ GR_GLOBAL struct {
     int level_selected;
 } level_packs[1];
 GR_GLOBAL int selected_pack;
-GR_GLOBAL unsigned long gr_score;	/* points (screws/keys/ammo collected); shown on pause */
+GR_GLOBAL unsigned long gr_score;	/* points from screws and bonus glyphs; shown on pause */
 
 /* ---- scoreline / game_area / intro_screen redraw bookkeeping ---- */
 GR_GLOBAL struct { int redraw; } scoreline;

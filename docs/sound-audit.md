@@ -58,9 +58,9 @@ steps. `$0` = gated noise, `$8` = noise, `$A` = square, `$C` = poly4 buzz.
 | 13 | Capsule opens | `$0` | 1,284 ms | Gated-noise alternation and unclipped fade |
 | 14 | Magnet | `$0` | 1,284 ms | Distinct noise rates and original rising envelope |
 
-Extra-life objects are not represented by this port's existing level converter;
-its sound is still available and used in the ending. Normal capsule advancement
-keeps WIN playing: this port loads the next room immediately, whereas Atari has
+The original extra-life glyph is preserved as a 200-point score pickup and uses
+the original extra-life sound. That sound is also used in the ending. Normal capsule
+advancement keeps WIN playing: this port loads the next room immediately, whereas Atari has
 an intervening screen wipe before ENTER.
 
 ## Remaining hardware approximations
