@@ -158,6 +158,9 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   Other visible walls are inverse; state 3 is solid cave fill. Nonshooting birds
   are normal; shooting birds and moving guns are inverse. Preserve these flags
   when moving objects.
+- **Atari ZAPO barricades rotate west.** `$11` is the fixed inverse-wall anchor;
+  `$0F` segments use GNU barrier direction 2, so a shot gap moves left and wraps
+  at the `$05` right wall. Level 52 exercises this in `tools/BarrierTest.java`.
 - **Exit colour flash runs in the camera VBlank handler.** `level.now_is_blinking`
   is a pending request from `open_exit`; the handler clears it and changes only
   palette 0/1 entry 0 for four GBC frames, then restores the cached level floor.

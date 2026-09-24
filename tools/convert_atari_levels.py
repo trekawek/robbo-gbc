@@ -91,7 +91,7 @@ def byte_to_cell(b):
     if b in (0x0D, 0x0E):                              # MOD moving cannon (fires up)
         d2 = 2 if b == 0x0D else 0                     # crawls W (0x0D) / E (0x0E)
         return Cell('}', [3, d2, 0, 1, 0, 0])          # fire N, movable
-    if b == 0x0F: return Cell('=', [0])                # moving ZAPO force-field segment
+    if b == 0x0F: return Cell('=', [2])                # ZAPO shifts the force field west
     if b == 0x11: return Cell('O')                     # fixed ZAPO anchor; LOOK[$11] is a wall
     if b == 0x5C: return Cell('O', [9])               # normal-palette wall glyph $00
     if b == 0x06: return Cell('~')                    # inertial crate (TBEZ / BEZS)

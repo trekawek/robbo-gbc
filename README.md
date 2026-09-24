@@ -82,6 +82,10 @@ tools/PushBoxTest.java build/robbo.gbc` checks level 29's striped sliding boxes,
 including pushing with the D-pad, continued movement after release and stopping
 at obstacles while preserving their appearance.
 
+`java --class-path "$CAMERA_TEST_CP" tools/BarrierTest.java build/robbo.gbc
+build/robbo.noi` checks that level 52's barricade gap moves left and wraps
+between its Atari wall endpoints.
+
 All 15 sound effects can be recorded and checked against the Atari tables with
 `make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its
 dependency JARs). See [the sound audit](docs/sound-audit.md) for the comparison,

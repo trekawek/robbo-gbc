@@ -52,14 +52,14 @@ class PushBoxConversionTest(unittest.TestCase):
 
 class BarrierConversionTest(unittest.TestCase):
     def test_level52_barrier_is_contained_by_walls(self):
-        # Atari ZAPO leaves $11 at the left endpoint and shifts only $0F
-        # segments, stopping at the $05 wall on the right.
+        # Atari ZAPO leaves $11 at the left endpoint and shifts $0F segments
+        # west, wrapping at the $05 wall on the right.
         rows = [" " * W for _ in range(H)]
         rows[13] = "┼ ┌▖▖▖▖▖▖▖▖▖▖┐┼ "
         grid, additional = atari_level_to_dat(rows, 52)
         self.assertEqual(grid[13], "-.O==========O-.")
         self.assertEqual(additional, [
-            (x, 13, "=", [0]) for x in range(3, 13)
+            (x, 13, "=", [2]) for x in range(3, 13)
         ])
 
 
