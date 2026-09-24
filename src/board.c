@@ -989,7 +989,9 @@ void gr_set_moved(int x, int y, int v) {
     if (!board[x][y].inlist) { board[x][y].inlist = 1; gr_row_active[y]++; }
 }
 void gr_set_blowed(int x, int y, int v) {
-    board[x][y].blowed = (unsigned char)v;
+    /* The GNU engine passes nonzero delay values here, but GBC stores this
+       field as one bit. Preserve the explosion request when the delay is even. */
+    board[x][y].blowed = (v != 0);
     if (!board[x][y].inlist) { board[x][y].inlist = 1; gr_row_active[y]++; }
 }
 

@@ -76,6 +76,9 @@ tools/CannonTest.java build/robbo.gbc` checks level 22's three left-hand cannons
 It verifies right-facing blasters, then removes their blocking boxes to isolate
 firing behavior and checks that all three clear debris while preserving screws.
 The same test verifies the projectile-head and animated blast-trail tiles.
+`java --class-path "$CAMERA_TEST_CP" tools/BlasterBombTest.java build/robbo.gbc
+build/robbo.noi` checks that a level 38 blaster detonates a bomb both on direct
+muzzle contact and when its traveling projectile reaches the bomb.
 
 With the same classpath and linker symbols, `java --class-path "$CAMERA_TEST_CP"
 tools/PushBoxTest.java build/robbo.gbc` checks level 29's striped sliding boxes,
