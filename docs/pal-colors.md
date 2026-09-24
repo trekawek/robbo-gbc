@@ -59,6 +59,25 @@ The palette export bypasses X11 display scaling. The room captures were made
 from an Xvfb window and used only to confirm that the exported RGB values
 appear in Robbo's own rendered playfield and HUD.
 
+Coffee GB's built-in screenshot saves the displayed frame, including **Apply CGB
+color correction** when enabled. A direct level 1 comparison of built-in PNGs
+shows that the Altirra capture matches its exported palette and the Coffee GB
+capture matches Coffee GB's corrected RGB conversion exactly:
+
+| Level 1 colour | Altirra PAL | Coffee GB, correction on | Coffee GB, correction off |
+|---|---|---|---|
+| Floor | `30,116,0` | `28,120,0` | `32,112,0` |
+| Blue wall | `0,30,171` | `0,114,210` | `0,32,168` |
+| Gold wall edge | `191,122,25` | `225,131,20` | `184,120,24` |
+| Grey | `168,168,168` | `202,202,202` | `160,160,160` |
+
+For a palette comparison, open **Screen > More Display Settings…** in Coffee GB
+and clear **Apply CGB color correction**, then take a new screenshot. The small
+remaining differences are from five-bit GBC colour precision. With correction
+enabled, Coffee GB's LCD model mixes blue into green: a blue channel near 171
+produces green of at least 92 even when the ROM requests zero green. Thus no
+ROM palette can reproduce Altirra's `0,30,171` blue in that display mode.
+
 ## Reproduce the reference
 
 Run the original executable in Altirra on PAL timing with artifacting disabled:
