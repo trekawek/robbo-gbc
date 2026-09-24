@@ -129,6 +129,7 @@ extern unsigned int gr_logo_rainbow[LOGO_RAINBOW_N][4];
      JANUSZ PELC
      CONTROL:  D-PAD <diamonds>    <- gray two-column block
      FIRE:     A + D-PAD
+     OVERVIEW: HOLD B
      ---------------------         <- dark-red rule
      [5-line instruction window]   <- typewriter; INSTRUCTIONS heading inverse
      ---------------------         <- dark-red rule
@@ -180,6 +181,7 @@ void title_gr_show(void) __banked {
     bg_str(0, 8, "CONTROL:  D-PAD", TPAL);
     for (d = 0; d < 4; d++) bg_put(16 + d, 8, SDIAM, TPAL);
     bg_str(0, 9, "FIRE:     A + D-PAD", TPAL);
+    bg_str(0, 10, "OVERVIEW: HOLD B", TPAL);
 
     /* horizontal rules around the instruction window */
     for (x = 0; x < 20; x++) {
