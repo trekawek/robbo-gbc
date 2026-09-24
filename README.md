@@ -88,6 +88,9 @@ at obstacles while preserving their appearance.
 `java --class-path "$CAMERA_TEST_CP" tools/BarrierTest.java build/robbo.gbc
 build/robbo.noi` checks that level 52's barricade gap moves left and wraps
 between its Atari wall endpoints.
+`java --class-path "$CAMERA_TEST_CP" tools/MagnetShieldTest.java build/robbo.gbc
+build/robbo.noi` checks the final room's bear shield, magnet scan and pull
+cadence, and the chance to escape after the bear moves away.
 
 All 15 sound effects can be recorded and checked against the Atari tables with
 `make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its

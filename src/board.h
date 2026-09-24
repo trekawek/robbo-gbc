@@ -58,7 +58,10 @@
 #define DELAY_TELEPORTING SCALE(3)
 #define DELAY_BOMB_TARGET (DELAY_BIGBOOM + 2)
 #define DELAY_ROBBO_ANIMATE (DELAY_ROBBO / 2)
-#define DELAY_MAGNET_ATTRACT DELAY_ROBBO
+/* Atari checks a magnet once per world step, then moves a captured Robbo on
+   every second step: the inverted magnetized glyph consumes the other step. */
+#define DELAY_MAGNET_SCAN DELAY_ROBBO
+#define DELAY_MAGNET_ATTRACT (DELAY_ROBBO * 2)
 #define DELAY_BLINKSCREEN SCALE(6)
 #define DELAY_RESTART (DELAY_BIGBOOM * 8)
 

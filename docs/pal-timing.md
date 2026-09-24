@@ -37,9 +37,15 @@ Atari `CHNMON`'s `CNTR & 2` cadence of **14 PAL frames / 280.782 ms**. Uploads s
 finish in batches of at most six tiles. Sound has its own PAL clock, and camera
 scrolling continues on every GBC VBlank.
 
-This corrects the overall gameplay pace and ambient animation. It preserves the
-inherited GNU engine's per-object rules, including its shooting cooldown and
-rotating-gun behavior; it does not replace those mechanics with Atari assembly.
+This corrects the overall gameplay pace and ambient animation. Magnets now scan
+once per two GBC ticks (one Atari board scan) and pull a captured Robbo once per
+four ticks (two Atari scans). The inherited GNU engine's other per-object rules,
+including shooting cooldown and rotating-gun behavior, remain in place.
+
+The level-56 upper-right bear/magnet regression uses the live GBC ROM. After the
+bear leaves the magnet's row, Robbo can press UP during the intervening half
+step and leave the row before the magnet scans again. It also checks that
+capture and subsequent pulls use the Atari cadence.
 
 ## Verification
 

@@ -834,6 +834,9 @@ int upd_g5(int x, int y) __banked
 						/*********************/
 		    case MAGNET:
 			i = 0;
+			/* Atari MGNL runs once per seven-PAL-frame board scan. Other
+			   objects still update on the intervening GBC half step. */
+			SET_MOVED(x, y, DELAY_MAGNET_SCAN);
 			if (robbo.blocked == 1)
 			    break;	/* *neurocyp we are already locked on a magnet we ignore other blocks */
 			set_coords(&coords, x, y);
@@ -854,6 +857,9 @@ int upd_g5(int x, int y) __banked
 				    robbo.blocked = 1;
 				    robbo.blocked_direction =
 					(board[x][y].direction + 2) & 0x03;
+				    /* Atari first writes an inverted magnetic Robbo glyph;
+				       only two full scans later does MGFL/MGFR move it. */
+				    robbo.moved = DELAY_MAGNET_ATTRACT;
 				} else
 				    switch (board[coords.x][coords.y].type) {
 					/*

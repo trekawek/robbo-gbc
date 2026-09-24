@@ -175,6 +175,7 @@ update_game(void)
 		    robbo.y--;
 		    break;
 		}
+		/* Atari's magnetized glyph moves on every second board scan. */
 		robbo.moved = DELAY_MAGNET_ATTRACT;
 		redraw_field(robbo.x, robbo.y);
 	    } else {
