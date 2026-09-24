@@ -30,6 +30,7 @@ GFX    := $(GENDIR)/gfx_tiles.c
 GFXH   := $(GENDIR)/gfx_tiles.h
 SOUNDH := $(GENDIR)/sounds.h
 INSTRH := $(GENDIR)/instr.h
+PALTXT := tools/atari_pal_palette.txt
 # generated level data (authentic Atari levels): HOME index + banked grids
 LEVELS    := $(SRCDIR)/levels_idx.c $(SRCDIR)/levels_d0.c $(SRCDIR)/levels_d1.c $(SRCDIR)/levels_d2.c
 ATARIDAT  := $(GENDIR)/atari_levels.dat
@@ -54,6 +55,10 @@ $(BUILD):
 	@mkdir -p $(BUILD)
 
 # --- asset generation ---
+$(PALTXT): tools/convert_altirra_palette.py tools/altirra_default_pal.pal
+	$(PY) tools/convert_altirra_palette.py tools/altirra_default_pal.pal > $@.tmp
+	mv $@.tmp $@
+
 $(GFX) $(GFXH): tools/convert_font.py tools/sim_logo.py tools/gen_atari_pal.py tools/atari_pal_palette.txt
 	$(PY) tools/convert_font.py "$(ORIG)" $(GENDIR)
 

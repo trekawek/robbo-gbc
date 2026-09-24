@@ -88,8 +88,9 @@ dependency JARs). See [the sound audit](docs/sound-audit.md) for the comparison,
 remaining hardware approximations, and reference-audio generation.
 
 The [PAL colour audit](docs/pal-colors.md) compares all 56 rooms with the original
-running in Atari800, including normal/inverse glyphs, cave fill and the HUD.
-It includes commands for native reference captures and a full-board GBC regression.
+running in Altirra and uses its exported Default PAL palette, including
+normal/inverse glyphs, cave fill and the HUD. It includes capture and full-board
+GBC regression instructions.
 
 [Performance measurements](docs/performance.md) cover ten representative rooms,
 including level 4, with a symbol-driven Coffee GB benchmark and per-tick board

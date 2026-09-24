@@ -1,15 +1,16 @@
 # Atari PAL colour audit
 
-All 56 rooms were compared with the original `bin/robbo.xex` running in
-**Atari800 5.2.0**, using a fresh configuration, PAL mode, the standard colour
-preset and no PAL artifact filter. All **336 live level colour registers**
-match the original `d2/C1.txt`, `C2.txt` and `C3.txt` metadata. Native indexed PNG
-captures also confirm the two status-line colours in every room.
+The RGB reference is **Altirra 4.10's Default PAL** preset, with the XL/XE luma
+map, no colour matching, gamma 1.00 and PAL artifacting disabled. The original
+`bin/robbo.xex` was run in Altirra under Wine. All 56 rooms were selected through
+the game's own setup routine and captured. In every room, the five expected
+playfield colours and both HUD colours from Altirra's palette export appear
+exactly in the rendered pixels: **392 of 392 checks**.
 
-The existing playfield RGB reference was already correct. The main differences
-were where the port applied those colours: cave fill, some object variants,
-normal walls and the status line. The reference table now includes every Atari
-colour so the HUD and title use the same PAL conversion as the playfield.
+The level colour-register bytes still come from the original `d2/C1.txt`,
+`C2.txt` and `C3.txt` metadata. The port previously converted those bytes with
+Atari800 5.2.0's standard PAL palette. It now uses Altirra's exported RGB
+table for the playfield, HUD and title.
 
 ## Corrections
 
@@ -42,33 +43,48 @@ the HUD and solid cave-fill palettes are unaffected. Loading resets the flash.
 ## Colour precision and displays
 
 GTIA ignores colour-register bit 0: odd values alias their even neighbours.
-The committed 256-entry table records those aliases explicitly. GBC channels
+The committed 256-entry text table records those aliases explicitly. Altirra's
+raw 768-byte export is kept as `tools/altirra_default_pal.pal`. GBC channels
 have five bits, so conversion uses `round(channel * 31 / 255)` and packs the
 result as BGR555. This minimizes channel error for full-range RGB555 expansion.
-It changes the encoded palette in 49 of the 56 rooms, usually by one channel step.
+All 56 level palettes change from the previous Atari800-based table.
 
 An Atari television and a physical GBC LCD have different colour responses.
-Emulator colour-correction profiles also differ. The target here is Atari800's
-standard PAL palette represented in nominal full-range RGB555. Coffee GB's
+Emulator colour-correction profiles also differ. The target here is Altirra's
+Default PAL palette represented in nominal full-range RGB555. Coffee GB's
 uncorrected screenshots expand channels by multiplying by 8, and its default
 corrected display uses a different response curve; neither is an exact full-range
 RGB555 preview. Compare palette registers and colour placement as well as PNGs.
-The Atari captures bypass X11 recording, video conversion and display profiles.
+The palette export bypasses X11 display scaling. The room captures were made
+from an Xvfb window and used only to confirm that the exported RGB values
+appear in Robbo's own rendered playfield and HUD.
 
 ## Reproduce the reference
 
-Install Atari800, MADS, Xvfb, and Python packages `python-xlib`, `pexpect`, and
-`Pillow`. Use the matching original Atari executable and assembler source:
+Run the original executable in Altirra on PAL timing with artifacting disabled:
 
 ```sh
-python3 tools/atari_palette_reference.py "$ORIG" build/atari-pal-reference
+wine64 /opt/altirra/Altirra64.exe /w /pal /artifact:none \
+  /run "$(winepath -w "$ORIG/bin/robbo.xex")"
 ```
 
-The tool resolves symbols from `R1.ASM`, selects all 56 rooms through their
-original initialization routine, validates metadata and live colour registers,
-and verifies HUD pixel indices. It writes native `level-01.png` through
-`level-56.png`, `palettes.csv`, `reference.json`, and the full RGB palette.
-`--display :94` can select another X display if the default is occupied.
+In **View > Adjust Colors**, select **Default PAL**, **XL/XE** luma map,
+**None** for colour matching and gamma **1.00**. Use **File > Export Palette**
+to save `tools/altirra_default_pal.pal` as an Atari800 palette file (768 bytes).
+`tools/convert_altirra_palette.py` converts the export into the GTIA lookup
+table, aliasing odd colour values to the preceding even value.
+
+To inspect a specific original room, press F8 to open Altirra's debugger,
+enter `a8` for Atari800-compatible commands, then use `c 9d NN`,
+`setpc 1d22`, `sets fd`, `cont` to enter room `NN+1` through Robbo's original
+`SETU` routine. The addresses are `CNUM` and `SETU` from the matching
+`d1/R1.ASM`; `NN` is the hexadecimal value of the zero-based level number
+(for example, `33` selects level 52). Check the addresses against an assembled
+label table if the executable changes. Let the room draw before pausing with F8
+and capturing it. All 56 rooms were checked this way against the exported palette.
+
+The earlier Atari800-only capture tool, `tools/atari_palette_reference.py`,
+remains available for comparing emulator presets.
 
 `make` regenerates `src/atari_pal.c`, the title assets and converted level data
 when their relevant palette/source inputs change.
