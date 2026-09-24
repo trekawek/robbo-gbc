@@ -358,8 +358,7 @@ int upd_g2(int x, int y) __banked
    (signals robbo died / stop this cycle). */
 int upd_g3(int x, int y) __banked
 {
-    int temp_state;
-    struct Coords coords, coords_temp;
+    struct Coords coords;
     switch (board[x][y].type) {
 		    case BIRD:
 			set_coords(&coords, x, y);
@@ -421,23 +420,33 @@ int upd_g3(int x, int y) __banked
 						/* BLASTER logic     */
 						/*********************/
 		    case BLASTER:
+			{
+			struct object *trail = &board[x][y];
+			int temp_state = trail->state;
+			unsigned char tx = (unsigned char)x, ty = (unsigned char)y;
+			unsigned char direction;
 			set_coords(&coords, x, y);
 			redraw_field(x, y);
-			set_coords(&coords_temp, x, y);	/* * neurocyp now we will check if the gun was removed during blaster shot, if so, we have to react */
-			temp_state =
-			    board[coords_temp.x][coords_temp.y].state;
-			while (board[coords_temp.x][coords_temp.y].type ==
-			       BLASTER) {
-			    temp_state =
-				board[coords_temp.x][coords_temp.y].state;
-			    update_coords(&coords_temp,
-					  (board[coords_temp.x]
-					   [coords_temp.y].direction +
-					   2) % 4);
+			/* Follow each segment's own direction. A pointer step avoids
+			   recomputing x * MAX_H + y for every segment in the trail. */
+			while (trail->type == BLASTER) {
+			    temp_state = trail->state;
+			    direction = trail->direction & 3;
+			    if (direction == 0) {
+				if (!tx) break;
+				tx--; trail -= MAX_H;
+			    } else if (direction == 1) {
+				if (!ty) break;
+				ty--; trail--;
+			    } else if (direction == 2) {
+				if (tx + 1 >= level.w) break;
+				tx++; trail += MAX_H;
+			    } else {
+				if (ty + 1 >= level.h) break;
+				ty++; trail++;
+			    }
 			}
-			if (temp_state < 3
-			    && board[coords_temp.x][coords_temp.y].type !=
-			    GUN) {
+			if (temp_state < 3 && trail->type != GUN) {
 			    create_object(coords.x, coords.y, LITTLE_BOOM);	/* so the gun was removed during shot? ok, clear it out */
 			    SET_MOVED(coords.x, coords.y, DELAY_BLASTER);
 			    break;
@@ -490,6 +499,7 @@ int upd_g3(int x, int y) __banked
 			} else {
 			    clear_field(x, y);
 			}
+			}
 			break;
 						/*********************/
 						/* CAPSULE logic     */
@@ -524,22 +534,33 @@ int upd_g3(int x, int y) __banked
 int upd_g4(int x, int y) __banked
 {
     int temp_state, i;
-    unsigned char laser_type, laser_direction;
-    struct object *front;
+    unsigned char laser_type, laser_direction, back, fx, fy;
+    struct object *front, *origin;
     struct Coords coords, coords_temp;
     switch (board[x][y].type) {
 		    case LASER_L:
 		    case LASER_D:
 			laser_type = board[x][y].type;
 			laser_direction = board[x][y].direction;
-			set_coords(&coords, x, y);
-			/* This laser is already in bounds and active: writing directly
-			   skips redraw bounds checks and delay-setter reactivation. */
-			board[x][y].redraw = 1;
-			update_coords(&coords, laser_direction);
+			/* Forward neighbor, keeping this cell at a board edge.  The
+			   result is used for the hit check and the solid-beam fast path;
+			   avoid a helper call for every segment. */
+			fx = (unsigned char)x;
+			fy = (unsigned char)y;
+			if (laser_direction == 0) {
+			    if (fx != (unsigned char)(level.w - 1)) fx++;
+			} else if (laser_direction == 1) {
+			    if (fy != (unsigned char)(level.h - 1)) fy++;
+			} else if (laser_direction == 2) {
+			    if (fx) fx--;
+			} else if (fy) fy--;
+			/* LASER_L/D render from their type, not their state. Their
+			   visible animation comes from the shared tile upload, so a
+			   state-only update needs no cell redraw. Creation, movement,
+			   and clearing still mark their changed cells. */
 			board[x][y].moved = DELAY_LASER;
 
-			if ((coords.x == robbo.x) && (coords.y == robbo.y)
+			if ((fx == robbo.x) && (fy == robbo.y)
 			    && !board[x][y].returnlaser) {
 			    kill_robbo();
 			    return 1;	/* Thunor: Exiting here stops new lasers from being created */
@@ -577,42 +598,52 @@ int upd_g4(int x, int y) __banked
 			       cell.  Each beam still requires quadratic traversal, but
 			       walking its axis directly removes the costly helper and
 			       its repeated two-axis bounds checks.  The stop is identical,
-			       including the boundary case where update_coords() failed. */
-			    set_coords(&coords_temp, x, y);
+			   including the boundary case where update_coords() failed. */
+			    origin = &board[x][y];
 			    switch (laser_direction) {
 			    case 0:
-				while (board[coords_temp.x][y].type == laser_type) {
-				    if (coords_temp.x == 0) break;
-				    coords_temp.x--;
+				back = (unsigned char)x;
+				while (origin->type == laser_type) {
+				    if (back == 0) break;
+				    back--;
+				    origin -= MAX_H;
 				}
 				break;
 			    case 1:
-				while (board[x][coords_temp.y].type == laser_type) {
-				    if (coords_temp.y == 0) break;
-				    coords_temp.y--;
+				back = (unsigned char)y;
+				while (origin->type == laser_type) {
+				    if (back == 0) break;
+				    back--;
+				    origin--;
 				}
 				break;
 			    case 2:
-				while (board[coords_temp.x][y].type == laser_type) {
-				    if (coords_temp.x == level.w - 1) break;
-				    coords_temp.x++;
+				back = (unsigned char)x;
+				while (origin->type == laser_type) {
+				    if (back == (unsigned char)(level.w - 1)) break;
+				    back++;
+				    origin += MAX_H;
 				}
 				break;
 			    default:
-				while (board[x][coords_temp.y].type == laser_type) {
-				    if (coords_temp.y == level.h - 1) break;
-				    coords_temp.y++;
+				back = (unsigned char)y;
+				while (origin->type == laser_type) {
+				    if (back == (unsigned char)(level.h - 1)) break;
+				    back++;
+				    origin++;
 				}
 				break;
 			    }
-			    if (board[coords_temp.x][coords_temp.y].type != GUN) {	/* ok, now we are at the beginning of laser beam if it is not a gun, which is there, destroy laser */
+			    if (origin->type != GUN) {	/* ok, now we are at the beginning of laser beam if it is not a gun, which is there, destroy laser */
 				create_object(x, y, LITTLE_BOOM);
 				break;
 			    }
-					/* neurocyp: set the state for the whole beam (begin)*/
-  	    		    set_coords(&coords_temp, x, y);	
-			    update_coords(&coords_temp, (laser_direction+2) & 0x03);
-			    if(board[coords_temp.x][coords_temp.y].type==GUN) {   /* are we at the beginning of the laser? */
+			    /* The origin walk ended at the gun. Its axis position also
+			       tells us whether that gun is immediately behind this cell. */
+			    if ((laser_direction == 0 && back + 1 == x) ||
+				(laser_direction == 1 && back + 1 == y) ||
+				(laser_direction == 2 && back == x + 1) ||
+				(laser_direction == 3 && back == y + 1)) {
 				temp_state=(board[x][y].state==3)?2:3;
 				set_coords(&coords_temp, x, y);
 				/* The whole connected beam changes frame together.  As with
@@ -624,7 +655,6 @@ int upd_g4(int x, int y) __banked
 				    if (beam->type != laser_type ||
 					beam->direction != laser_direction)
 					break;
-				    beam->redraw = 1;
 				    beam->state = temp_state;
 				    switch (laser_direction) {
 				    case 0:
@@ -647,15 +677,14 @@ int upd_g4(int x, int y) __banked
 				}
 			beam_state_done:;
 				}
-					/* neurocyp: set the state for the whole beam (end)*/
 			    /* An outbound non-tip segment only faces the next segment.
 			       The generic can_move()/update_coords() path below can do
 			       nothing for it, so avoid both helpers. */
-			    /* coords still holds the forward neighbor from the kill
+			    /* fx/fy still hold the forward neighbor from the kill
 			       check above (or this cell when at the board boundary). */
-			    front = &board[coords.x][coords.y];
+			    front = &board[fx][fy];
 			    if (!board[x][y].returnlaser &&
-				(coords.x != x || coords.y != y) &&
+				(fx != (unsigned char)x || fy != (unsigned char)y) &&
 				(front->type == LASER_L || front->type == LASER_D) &&
 				front->direction == laser_direction)
 				break;

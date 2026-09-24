@@ -38,7 +38,8 @@ callees and interrupts. Changes to the wait policy provide the remaining gain.
 With the current PAL pacing enabled, the same 128-update room-start benchmark
 for level 18 improves from **8.581 to 11.276 updates/s (+31.4%)**. Average
 `update_game` time falls from **88.756 to 61.126 ms**; rendering remains about
-15.283 ms. This heavy room still falls below the 14.245927 updates/s target.
+15.283 ms. At this stage the room remains below the 14.245927 updates/s target;
+the later board-scan pass below restores the target pace in this benchmark.
 
 Fixed cannons on shot cooldown now synchronize their image directly in the
 main scan, avoiding a banked handler call and unnecessary movement/rotation
@@ -52,8 +53,9 @@ a cannon moves or is destroyed. Interior outbound segments reuse the forward
 neighbor already found for collision checking and skip movement helpers when
 that neighbor is another beam segment traveling in the same direction.
 
-The benchmark also reports `upd_g4` (lasers and other group-4 objects) and
-`upd_g5` (guns, magnets, and push boxes). These times are included in
+The benchmark also reports `upd_g3` (blasters and other group-3 objects),
+`upd_g4` (lasers and other group-4 objects), and `upd_g5` (guns, magnets, and
+push boxes). These times are included in
 `update_game`, so they must not be added to its total.
 
 Before/after snapshots match on all eleven tested rooms (1, 4, 11, 16, 18,
@@ -65,6 +67,74 @@ the PAL limit.
 Level 18 also matches through 128 updates starting at cycle 65521, crossing
 both processed-byte and 16-bit counter wrap. All four focused laser fixtures
 described below match for 32 updates each, with exact active-row counts.
+
+### Blaster trail optimization (level 38)
+
+Level 38's perimeter cannons create long blaster trails. Each trail segment
+checks whether its source cannon still exists by walking backward through the
+segments. Using a cell pointer for that walk avoids recalculating the board
+address from coordinates at every step. The walk still follows each segment's
+direction and checks the same source and trail state.
+
+In the 512-update room-start benchmark, level 38 rises from **13.218 to 14.250
+updates/s**, reaching the PAL target. Mean `update_game` time falls from
+**49.506 to 32.187 ms**; mean `show_game_area` time stays at about **10.54 ms**.
+The complete 513-snapshot board/Robbo trace matches byte for byte, with exact
+active-row counts checked every update. Level 22's 192-update live cannon test
+also passes.
+
+### Solid beam optimization (level 42)
+
+Level 42 keeps many horizontal solid beams active. Their source checks now walk
+board cells with a pointer and a byte-sized axis position, and use the result to
+identify the segment next to the gun. The forward hit check also computes its
+neighbor directly. Beam state changes no longer request a cell redraw: the
+laser glyph depends on object type, while its visible animation is uploaded to
+shared tiles independently. Creating, moving, and clearing a beam still redraws
+the affected cells.
+
+In the 256-update room-start benchmark, level 42 improves from **12.938 to
+14.081 updates/s (+8.8%)**. Mean `update_game` time falls from **47.777 to
+39.576 ms**, and mean `show_game_area` from **16.107 to 14.330 ms**. All 257
+board/Robbo snapshots match byte for byte, with exact active-row counts at every
+update. A 512-update run holds **14.137 updates/s**.
+
+### Smaller board scan and laser coordinates
+
+Further profiling found that the board scan itself spent substantial time
+reloading its cell pointer and loop counters from the stack. Moving active-cell
+processing into a HOME helper lets the compiler keep the scan's pointer and
+counters in registers. Retirement checks now test the movement delay first,
+avoiding unnecessary type and activity checks for cells still on cooldown.
+The laser forward-neighbor calculation also uses byte-sized coordinates,
+retaining its boundary clamping and full Robbo-coordinate comparisons.
+
+Compared with the preceding blaster/beam optimizations, 512-update room-start
+runs show:
+
+| Level | Before logic ms/update | After logic ms/update | Before updates/s | After updates/s |
+|---:|---:|---:|---:|---:|
+| 38 | 32.187 | 26.519 | 14.250 | 14.250 |
+| 42 | 39.779 | 32.816 | 14.137 | 14.222 |
+
+Both rooms spend about **18% less time in `update_game`**. Level 38 remains at
+the PAL limit, while level 42 is within 0.2% of the target in this workload.
+Rendering remains about 10.54 ms and 14.17 ms respectively. This is extra
+processing headroom; the PAL clock and object delays are unchanged.
+
+The improvement also helps other rooms. In the 128-update level-18 benchmark,
+logic falls from **52.584 to 39.306 ms** and pace rises from **12.811 to
+14.263 updates/s**, reaching the limit. All eleven representative rooms now
+reach that limit in the room-start benchmark (short samples can read slightly
+above the long-run target because of fractional frame boundaries).
+
+All 513 snapshots match on levels 38 and 42, as do all 129 snapshots on each of
+the eleven representative rooms. Exact active-row counts pass throughout.
+All four gameplay behavior assertions and the 62-update sliding-box test pass.
+Levels 18 and 42 also match for 128 updates starting at cycle 65521, crossing
+the processed-byte and 16-bit counter wrap. All four focused laser fixtures
+match for 32 updates each, including board edges and intersecting beams.
+A dispatch-table experiment was discarded after measuring a small regression.
 
 ## Changes
 

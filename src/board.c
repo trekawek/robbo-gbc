@@ -59,6 +59,63 @@ const unsigned char gr_act_type[72] = {
     [PUSH_BOX] = 1, [MAGNET] = 1, [GUN] = 1,
 };
 
+/* Keep the board scan small so the compiler can retain its cell pointer and
+   loop counters in registers. Return nonzero when a handler stops the tick. */
+static unsigned char
+update_cell(struct object *c, unsigned char x, unsigned char y)
+{
+    /* Objects moved ahead in scan order must not have their delays decremented
+       twice. The processed stamp stores only the low byte of cycle_count. */
+    if (c->processed != (unsigned char)cycle_count) {
+	c->processed = cycle_count;
+
+	/* GUN and BIRD objects can rotate and shoot; MAGNET also has delays. */
+	if (c->type == GUN || c->type == BIRD || c->type == MAGNET) {
+	    if (c->shooted > 0)
+		c->shooted--;
+	    if (c->rotated > 0)
+		c->rotated--;
+	}
+
+	if (c->moved > 0)
+	    c->moved--;
+	if (c->moved <= 0) {
+	    if (c->blowed)
+		check_object_if_blowed(x, y);
+
+	    switch (c->type) {
+	    case BEAR: case BEAR_B:
+		if (upd_g1(x, y)) return 1; break;
+	    case BARRIER:
+		if (upd_g2(x, y)) return 1; break;
+	    case BIRD: case BUTTERFLY: case BLASTER:
+	    case CAPSULE: case LITTLE_BOOM:
+		if (upd_g3(x, y)) return 1; break;
+	    case LASER_L: case LASER_D: case BIG_BOOM:
+	    case RADIOACTIVE_FIELD: case TELEPORT: case TELEPORTING:
+		if (upd_g4(x, y)) return 1; break;
+	    case PUSH_BOX: case MAGNET:
+		if (upd_g5(x, y)) return 1; break;
+	    case GUN:
+		/* A fixed gun on cooldown only synchronizes its image.
+		   Keep that write here and skip the banked handler's
+		   movement/rotation checks until it can fire again. */
+		if (!c->movable && !c->rotable && c->shooted) {
+		    c->state = c->direction;
+		    break;
+		}
+		if (upd_g5(x, y)) return 1; break;
+	    default: break;
+	    }
+	}
+	if (c->moved == 0 && !gr_act_type[c->type] && c->inlist && !c->blowed) {
+	    c->inlist = 0;
+	    --gr_row_active[y];
+	}
+    }
+    return 0;
+}
+
 
 
 /***************************************************************************
@@ -149,71 +206,8 @@ update_game(void)
 	    if (!c->inlist)             /* GBC perf: skip inert cells (one bit test) */
 		continue;
 
-	    /*
-	     * Thunor: I've added this check to filter out already
-	     * processed objects. Additionally the object logic updates
-	     * other objects and I have modified the code to mark those as
-	     * processed too. The reason I am doing this is because objects
-	     * can get moved ahead of the x/y loop resulting in them having
-	     * at least their shooted/rotated/moved properties decremented
-	     * more than once for this cycle and they go out of sync
-	     */
-	    /* The stamp has always stored the low byte. Comparing the full int
-	       stops filtering moved-ahead objects after the first 255 ticks. */
-	    if (c->processed != (unsigned char)cycle_count) {
-		c->processed = cycle_count;
-
-		/*
-		 * GUN and BIRD objects can rotate and shoot so update
-		 * their delays here
-		 */
-		if (c->type == GUN || c->type == BIRD || c->type == MAGNET) {
-		    if (c->shooted > 0)
-			c->shooted--;	/* Decrement shot delay */
-		    if (c->rotated > 0)
-			c->rotated--;	/* Decrement rotation delay */
-		}
-
-		/*
-		 * Decrement the object's delay and then check if it needs
-		 * processing
-		 */
-		if (c->moved > 0)
-		    c->moved--;
-		if (c->moved <= 0) {
-		    if (c->blowed)
-			check_object_if_blowed(x, y);
-
-			switch (c->type) {
-			case BEAR: case BEAR_B:
-			    if (upd_g1(x, y)) return; break;
-			case BARRIER:
-			    if (upd_g2(x, y)) return; break;
-			case BIRD: case BUTTERFLY: case BLASTER:
-			case CAPSULE: case LITTLE_BOOM:
-			    if (upd_g3(x, y)) return; break;
-			case LASER_L: case LASER_D: case BIG_BOOM:
-			case RADIOACTIVE_FIELD: case TELEPORT: case TELEPORTING:
-			    if (upd_g4(x, y)) return; break;
-			case PUSH_BOX: case MAGNET:
-			    if (upd_g5(x, y)) return; break;
-			case GUN:
-			    /* A fixed gun on cooldown only synchronizes its image.
-			       Keep that write here and skip the banked handler's
-			       movement/rotation checks until it can fire again. */
-			    if (!c->movable && !c->rotable && c->shooted) {
-				c->state = c->direction;
-				break;
-			    }
-			    if (upd_g5(x, y)) return; break;
-			default: break;
-			}
-		}
-			if (c->inlist && !gr_act_type[c->type] && c->moved == 0 && !c->blowed) {
-			    c->inlist = 0;
-			    --gr_row_active[y];
-			}
-	    }			/* .processed check */
+	    if (update_cell(c, x, y))
+		return;
 	}
         /* Activations and retirements maintain the exact count, including
            moves WEST into cells already passed. No second scan is needed. */

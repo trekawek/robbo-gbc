@@ -279,7 +279,7 @@ public class PerformanceTest {
     private void measure(int level, int cycles, Path output) throws Exception {
         boot(level);
         var phases = new ArrayList<Phase>();
-        for (String name : List.of("update_game", "upd_g4", "upd_g5", "show_game_area",
+        for (String name : List.of("update_game", "upd_g3", "upd_g4", "upd_g5", "show_game_area",
                 "render_gr_camera", "render_gr_anim", "render_gr_robbo"))
             phases.add(new Phase(name));
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -321,7 +321,7 @@ public class PerformanceTest {
         }
         double seconds = (ticks - started) / MASTER_HZ;
         double logic = phases.get(0).elapsed / MASTER_HZ;
-        double render = phases.get(3).elapsed / MASTER_HZ;
+        double render = phases.get(4).elapsed / MASTER_HZ;
         System.out.printf(Locale.ROOT,
                 "L%-2d cycles=%d frames=%d seconds=%.6f cycles/s=%.3f active=%d rows=%d logic=%.1f%% render=%.1f%% snapshot=%s%n",
                 level, completed, frames - initialFrames, seconds, completed / seconds,
