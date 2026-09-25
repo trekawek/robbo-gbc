@@ -75,48 +75,11 @@ phase is also free-running on Atari, so its five-event patterns can vary with
 when the effect starts. These limitations would require software sample
 streaming/mixing to remove, with a different CPU and audio architecture.
 
-## Reproduce the checks and recordings
+## Historical validation
 
-Build normally with the bundled GBDK. `SOUND_TEST_CP` must contain a built
-Coffee GB core and its dependency JARs, using absolute paths:
-
-```sh
-make
-make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"
-python3 tools/sound_reference.py third_party/lkavalon-atari/robbo/d1/R1.ASM
-```
-
-The Java harness links the production player into a small test ROM and reads
-mailbox addresses from that ROM's linker symbols. It records all effects to
-`build/sound-captures/`, then repeats at CGB double speed in `double-speed/`.
-It independently reads the Atari tables and checks timing, silent gaps, waveform
-selection, square/poly4 pitch, original volume, and nearest NR43 settings.
-Additional checks cover overlapping voices, shared-voice replacement, stop,
-invalid IDs, playback without main-loop updates, and restoring the interrupted
-ROM bank during a 90-frame banked workload. A channel left enabled at zero
-volume is silent: assertions use audible volume as well as enable flags.
-
-The Python reference requires NumPy and SciPy. It renders the original register
-sequences with master-clock polynomial sampling, including the poly5 output
-hold and latched gate, to `build/sound-test/reference/`. It is an independent
-digital POKEY model; it does not claim to reproduce analogue mixer nonlinearities
-or a recording of physical Atari hardware.
-
-To generate per-effect Atari / old GBC / new GBC listening triplets from a
-saved baseline capture directory:
-
-```sh
-python3 tools/compare_sound.py --before /path/to/old-sound-captures
-```
-
-This writes WAVs and a measured report under `build/sound-test/comparison/`.
-The listening copies equalize RMS to make timbre easier to compare; raw
-captures retain their original gain. Spectral distances in the report are
-diagnostics, not perceptual quality scores.
-
-Validation for this change: all 15 effects passed at both CPU speeds; camera
-regression passed; all four existing in-game behavior checks passed. A separate
-host harness exercised 12 gameplay sound-trigger cases against the actual engine.
+All 15 effects passed the original comparison checks at both CPU speeds.
+Camera and gameplay sound-trigger checks passed as well. A separate host harness
+exercised 12 gameplay sound-trigger cases against the engine.
 
 ## Source evidence
 

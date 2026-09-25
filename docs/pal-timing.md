@@ -42,27 +42,12 @@ once per two GBC ticks (one Atari board scan) and pull a captured Robbo once per
 four ticks (two Atari scans). The inherited GNU engine's other per-object rules,
 including shooting cooldown and rotating-gun behavior, remain in place.
 
-The level-56 upper-right bear/magnet regression uses the live GBC ROM. After the
+The level-56 upper-right bear/magnet check used the live GBC ROM. After the
 bear leaves the magnet's row, Robbo can press UP during the intervening half
-step and leave the row before the magnet scans again. It also checks that
+step and leave the row before the magnet scans again. It also checked that
 capture and subsequent pulls use the Atari cadence.
 
-## Verification
-
-Build with matching linker symbols and use a built Coffee GB core plus its
-dependencies on `TIMING_TEST_CP`:
-
-```sh
-make clean
-make LCCFLAGS_EXTRA='-Wl-m -Wl-j'
-java -Dtiming.assertPal=true --class-path "$TIMING_TEST_CP" \
-  tools/TimingTest.java build/robbo.gbc
-```
-
-The timing regression exercises the real scheduler, held movement, busy rooms,
-counter wrap and pause/resume. It measures emulated clock ticks, not host time.
-Individual event intervals are quantized to GBC frames and include rendering
-latency; compare the average over many moves with the PAL reference.
+## Historical measurements
 
 Measured steady held movement averaged **140.650 ms/cell**, within one GBC
 frame of accumulated error across 20 intervals versus PAL's **140.391 ms**.

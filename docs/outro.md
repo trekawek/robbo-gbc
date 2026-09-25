@@ -66,20 +66,3 @@ match Atari, with a simplified brightness band.
 The intro translation also clarifies that START opens the pause menu and the
 player must choose RESTART. It ends with the original author's sign-off;
 the title screen already credits Janusz Pelc and Avalon.
-
-## Verification
-
-Build with linker symbols and run the Coffee GB regression as described in
-the README:
-
-```sh
-make LCCFLAGS_EXTRA='-Wl-m -Wl-j'
-java --class-path "$CAMERA_TEST_CP" tools/OutroTest.java \
-  build/robbo.gbc build/robbo.noi
-```
-
-The regression observes rendered wave poses and their cadence, both complete
-text pages, their transitions, the animated border, closing wipe, and return to
-the same board with level, score, position, and ammo preserved. It also checks
-the normal ending-to-title path and that the closing sound plays after both
-returns.

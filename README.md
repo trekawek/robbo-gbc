@@ -35,7 +35,8 @@ explodes; you respawn and try again.
 | Start | Begin game (title screen) · in-game opens the pause menu |
 
 The pause menu offers **Resume**, **Restart**, **Warp** (jump to any level),
-**Outro** (watch the ending and return to the current level), and **Quit**.
+and **Quit**. Build with `make OUTRO_MENU=1` to add **Outro** (watch the ending
+and return to the current level) before Quit.
 HUD (bottom two rows): screws left · keys · ammo · level. The pause menu shows your score.
 Release B to return to the normal view. The overview uses compact 8×8 cells and follows
 Robbo vertically, so you can watch distant hazards while timing a move or a shot.
@@ -58,78 +59,12 @@ Asset conversion reads the Atari font, sound, text, levels and palettes from
 Output: `build/robbo.gbc` — a CGB ROM (MBC5) that runs in any Game Boy Color emulator or on
 hardware via a flashcart.
 
-### Verify headlessly
+## Reference notes
 
-`tools/shot.py` boots the ROM in [PyBoy](https://github.com/Baekalfen/PyBoy) and saves a PNG:
-
-```sh
-python3 tools/shot.py build/robbo.gbc out.png 200 "120:start:5,200:up:40"
-```
-
-The camera regression uses a built [Coffee GB](https://github.com/trekawek/coffee-gb)
-core and its dependency JARs on `CAMERA_TEST_CP`. Generate matching linker symbols, then run:
-
-```sh
-make clean
-make LCCFLAGS_EXTRA='-Wl-m -Wl-j'
-java --class-path "$CAMERA_TEST_CP" tools/CameraTest.java build/robbo.gbc
-```
-
-It checks scrolling in all four directions, reversals, level bounds, vertical map wrapping,
-and that scroll registers only change outside the visible frame.
-
-With the same classpath, `java --class-path "$CAMERA_TEST_CP" tools/OverviewTest.java
-build/robbo.gbc build/robbo.noi` checks the live B overview in level 56. It verifies that
-Robbo and the two distant birds appear together, the birds keep moving, and B+A+Up
-fires the last bullet into the upper bomb. It also checks camera bounds, the HUD, return
-to the normal view, pause/resume and restart. It compares gameplay timing with and without
-the overview, including walking up and down through the view, and checks for lost engine
-ticks and incorrectly shifted rows. Keep the matching `glue.sym` beside `robbo.noi`.
-Native screenshots without LCD colour correction are saved in `build/overview-captures/`.
-
-`java --class-path "$CAMERA_TEST_CP" tools/OutroTest.java build/robbo.gbc
-build/robbo.noi` checks the pause-menu outro, all 14 waving cycles and their
-cadence, both outro text pages and their patterned fade/reveal, closing wipe,
-and return to the same level with progress intact. See the
-[Atari outro comparison](docs/outro.md) for the
-reference timing, sound cues, and adaptations to the GBC screen.
-
-Level conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
-With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"
-tools/CannonTest.java build/robbo.gbc` checks level 22's three left-hand cannons.
-It verifies right-facing blasters, then removes their blocking boxes to isolate
-firing behavior and checks that all three clear debris while preserving screws.
-The same test verifies the projectile-head and animated blast-trail tiles.
-`java --class-path "$CAMERA_TEST_CP" tools/BlasterBombTest.java build/robbo.gbc
-build/robbo.noi` checks that a level 38 blaster detonates a bomb both on direct
-muzzle contact and when its traveling projectile reaches the bomb.
-
-With the same classpath and linker symbols, `java --class-path "$CAMERA_TEST_CP"
-tools/PushBoxTest.java build/robbo.gbc` checks level 29's striped sliding boxes,
-including pushing with the D-pad, continued movement after release and stopping
-at obstacles while preserving their appearance.
-
-`java --class-path "$CAMERA_TEST_CP" tools/BarrierTest.java build/robbo.gbc
-build/robbo.noi` checks that level 52's barricade gap moves left and wraps
-between its Atari wall endpoints.
-`java --class-path "$CAMERA_TEST_CP" tools/MagnetShieldTest.java build/robbo.gbc
-build/robbo.noi` checks the final room's bear shield, magnet scan and pull
-cadence, and the chance to escape after the bear moves away.
-
-All 15 sound effects can be recorded and checked against the Atari tables with
-`make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"` (a built Coffee GB core and its
-dependency JARs). See [the sound audit](docs/sound-audit.md) for the comparison,
-remaining hardware approximations, and reference-audio generation.
-
-The [PAL colour audit](docs/pal-colors.md) compares all 56 rooms with the original
-running in Altirra and uses its exported Default PAL palette, including
-normal/inverse glyphs, cave fill and the HUD. It includes capture and full-board
-GBC regression instructions.
-
-[Performance measurements](docs/performance.md) cover ten representative rooms,
-including level 4, with a symbol-driven Coffee GB benchmark and per-tick board
-comparisons. A fractional clock keeps movement at the [Atari PAL pace](docs/pal-timing.md)
-instead of letting faster processing accelerate gameplay.
+The [Atari outro comparison](docs/outro.md) documents the ending's timing and
+sound cues. The [sound audit](docs/sound-audit.md) and [PAL colour audit](docs/pal-colors.md)
+compare the GBC conversion with the original Atari game. [Performance measurements](docs/performance.md)
+and [Atari PAL timing](docs/pal-timing.md) document the game clock and rendering work.
 
 ## Layout
 
@@ -148,7 +83,7 @@ src/levels_*.c       generated level data (HOME index + banked grid modules)
 src/object_tables.c  LOOK (byte->glyph) and animation tables
 src/sound.c          GB-channel sound effects
 src/gen/             generated assets (gfx_tiles.*, sounds.h, instr.h)
-tools/               asset/level converters + the screenshot helper
+tools/               asset and level converters
 ```
 
 ### How rendering works

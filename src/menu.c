@@ -276,7 +276,7 @@ void menu_palette(void) __banked {
     set_bkg_palette(MENU_PAL, 1, mp);
 }
 
-/* 0=resume, 1=restart level, 2=warp, 3=preview outro, 4=quit to title */
+/* 0=resume, 1=restart level, 2=warp, optional 3=outro, PAUSE_QUIT=quit */
 unsigned char pause_gr(void) __banked {
     unsigned char sel = 0, x, y, keys, prev = 0xFF, ct[16];
     snd_stop();
@@ -290,18 +290,20 @@ unsigned char pause_gr(void) __banked {
     mw_str(6, 8, "RESUME");
     mw_str(6, 10, "RESTART");
     mw_str(6, 12, "WARP");
+#if OUTRO_MENU
     mw_str(6, 14, "OUTRO");
-    mw_str(6, 16, "QUIT");
+#endif
+    mw_str(6, 8 + PAUSE_QUIT * 2, "QUIT");
     WX_REG = 7; WY_REG = 0;            /* window covers the whole screen */
     SHOW_WIN;
     waitpadup();
     while (1) {
-        for (y = 8; y <= 16; y += 2) mw(4, y, 0x40);
+        for (y = 8; y <= 8 + PAUSE_QUIT * 2; y += 2) mw(4, y, 0x40);
         mw(4, 8 + sel * 2, CURSOR_TILE);
         wait_vbl_done();
         keys = joypad();
         if ((keys & J_UP)   && !(prev & J_UP)   && sel)     sel--;
-        if ((keys & J_DOWN) && !(prev & J_DOWN) && sel < 4) sel++;
+        if ((keys & J_DOWN) && !(prev & J_DOWN) && sel < PAUSE_QUIT) sel++;
         if ((keys & (J_A | J_START)) && !(prev & (J_A | J_START))) { waitpadup(); return sel; }
         prev = keys;
     }

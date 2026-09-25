@@ -222,6 +222,7 @@ void main(void) {
             } else if (r == 2) {                            /* warp to a chosen level */
                 unsigned char w = warp_gr();
                 if (w != 0xFF) { level_packs[0].level_selected = w + 1; start_level(); }
+#if OUTRO_MENU
             } else if (r == 3) {                            /* preview the outro */
                 DISPLAY_OFF;
                 render_gr_ending();
@@ -231,7 +232,8 @@ void main(void) {
                 DISPLAY_OFF;
                 render_gr_init();
                 render_gr_load();
-            } else if (r == 4) {                            /* quit to title */
+#endif
+            } else if (r == PAUSE_QUIT) {                   /* quit to title */
                 render_gr_logo();
                 title_gr_show(0);
                 render_gr_init();

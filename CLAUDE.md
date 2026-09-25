@@ -9,7 +9,7 @@ file is the working guide for continuing development.
 
 ## External sources (paths matter)
 
-- `ORIG` = `~/dev/lkavalon-atari/robbo` — original Atari game. Supplies the font, sound
+- `ORIG` = `third_party/lkavalon-atari/robbo` — original Atari game. Supplies the font, sound
   tables, instruction text, and the **authentic level designs** (`d2/C*.txt`).
 - `~/dev/coffee-gb` — headless Java GBC emulator used by the `solver/` test harness.
 - Reference commit `882ea088c4cdb10f365e26e06cb54260c1d90b49` = the older GBC build whose
@@ -40,20 +40,11 @@ the rainbow table into the WRAM `gr_logo_rainbow[]`; `title_gr_show()` cycles it
 rainbow animation. The Atari rainbow is *temporal* hue-cycling of COLPF0/1/2 (lum 2/4/8),
 not a spatial gradient.
 
-## Headless verification (two harnesses)
+## Local emulator probes
 
-1. **PyBoy quick screenshot** (`tools/shot.py`): boots the ROM and saves a PNG after a
-   scripted input sequence.
-   ```sh
-   python3 tools/shot.py build/robbo.gbc out.png 200 "120:start:5,200:up:40"
-   ```
-2. **coffee-gb Java harness** (`solver/`): drives buttons via
-   `bus.post(new ButtonPress/ReleaseEvent(Button.X))`, reads WRAM via
-   `gb.getAddressSpace().getByte(addr)`, captures frames on `GbcFrameReadyEvent`.
-   `solver/run.sh` builds the coffee-gb core jar + compiles/runs `Solver.java`.
-   `solver/BehaviorTest.java` is the in-game behaviour assertion suite (verify by
-   *observing board state*, not by reading internal flags) — run it after engine changes.
-   Other `*.java` in `solver/` are single-purpose probes built during past tasks.
+The untracked `solver/` directory contains a coffee-gb Java harness that drives
+buttons, reads WRAM, and captures frames. Its probes are local development files,
+outside this repository.
 
 Memory note: never run more than 3 background tasks at once.
 
@@ -86,8 +77,8 @@ src/loader.c       level load → board setup + per-level palette + the [additio
 src/menu.c         title (authentic 'RoDDo' logo + rainbow) + pause/warp menu (banked)
 src/atari_pal.c    56 authentic per-level palettes (banked)
 src/levels_*.c     generated level data (HOME index + banked grids) — DO NOT hand-edit
-tools/             asset + level converters; shot.py screenshot helper
-solver/            coffee-gb Java harness + analysis probes (gitignored, not in repo)
+tools/             asset and level converters
+solver/            local coffee-gb Java harness + analysis probes (untracked)
 ```
 
 ## Engine model (key facts)
@@ -160,7 +151,7 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
   when moving objects.
 - **Atari ZAPO barricades rotate west.** `$11` is the fixed inverse-wall anchor;
   `$0F` segments use GNU barrier direction 2, so a shot gap moves left and wraps
-  at the `$05` right wall. Level 52 exercises this in `tools/BarrierTest.java`.
+  at the `$05` right wall.
 - **Exit colour flash runs in the camera VBlank handler.** `level.now_is_blinking`
   is a pending request from `open_exit`; the handler clears it and changes only
   palette 0/1 entry 0 for four GBC frames, then restores the cached level floor.
@@ -177,8 +168,7 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
 - **DZ3 pipe-glyph guns are blasters (shottype 2): `├` fires right, `┤` left,
   `┬` down, `┴` up.** This follows R2.ASM's PROC dispatch to DZ3R/L/D/U. The
   converter previously swapped the horizontal pair and emitted ordinary bullets;
-  level 22's three left-hand guns consequently fired into the wall. Run
-  `python3 tools/test_convert_atari_levels.py` after changing cannon conversion.
+  level 22's three left-hand guns consequently fired into the wall.
   BLASTER rendering is stateful: state 0 uses the Atari W/X/Y/Z projectile head;
   states 1..4 use the b..e blast trail. Do not render BLASTER with cannon arrows.
 - After editing any header, `make clean` — header dependencies aren't fully tracked and you
@@ -186,7 +176,7 @@ solver/            coffee-gb Java harness + analysis probes (gitignored, not in 
 
 ## Sound
 
-See `docs/sound-audit.md` for all 15 effects and validation commands. `snd_init`
+See `docs/sound-audit.md` for all 15 effects and the comparison findings. `snd_init`
 installs a HOME VBlank wrapper that saves/restores the ROM bank and runs the
 banked player on the original four-PAL-frame cadence. `snd_play` queues one of
 four Atari logical voices (0/1/2, and shared 3 for all other IDs); `snd_stop`
@@ -201,12 +191,12 @@ gun/bird crackle. Robbo's own actions always pass `SND_NORM`.
 
 ## Performance
 
-See `docs/performance.md` and `tools/PerformanceTest.java`. The current engine
+See `docs/performance.md`. The current engine
 removes the second active-row scan, expensive per-dirty-cell division, generic
 object creation when clearing a cell, and leftover work from the handler split.
 Level 4 processing improved from 8.3 to 16.4 updates/second before applying the
 PAL speed limit. Gameplay now targets 14.245927 updates/second; see
-`docs/pal-timing.md` and `tools/TimingTest.java`. Per-tick behavior is unchanged.
+`docs/pal-timing.md`. Per-tick behavior is unchanged.
 Camera, sound, and ambient animation use VBlank time.
 Measure emulated time, not host emulator throughput; compare board traces per
 logical tick and assert row counts before accepting further optimizations.

@@ -27,6 +27,13 @@ typedef unsigned long Uint32;
 #define OPTIONS_SCREEN 4
 #define DESIGNER_ON 5
 
+/* The optional pause-menu preview inserts OUTRO before QUIT. */
+#if OUTRO_MENU
+#define PAUSE_QUIT 4
+#else
+#define PAUSE_QUIT 3
+#endif
+
 /* ---- sound (from sound.h) ---- */
 #define SND_FULL 3
 #define SND_NORM 2

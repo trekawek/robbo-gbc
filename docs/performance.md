@@ -170,46 +170,7 @@ Snapshots include object behavior, delays, directions, Robbo, game mode, and
 restart countdown; they exclude presentation/cache fields and processed stamps.
 Exact active-row counts are checked against all cell flags at each boundary.
 
-Existing camera regression and all four gameplay behavior checks pass. Additional
+Existing camera regression and all four gameplay behavior checks passed. Additional
 counter-epoch tests cover the tick-255 boundary and the 16-bit cycle-counter wrap;
 frame-clock wrap tests exercise pacing. The current fractional clock does not
 depend on the wrapping `sys_time` counter.
-
-## Reproduce
-
-A built Coffee GB core and its dependency JARs must be on the absolute
-`PERFORMANCE_TEST_CP` classpath. Generate linker symbols from the same ROM:
-
-```sh
-make clean
-make LCCFLAGS_EXTRA='-Wl-m -Wl-j'
-java -Dperformance.assertRowCounts=true --class-path "$PERFORMANCE_TEST_CP" \
-  tools/PerformanceTest.java build/robbo.gbc build/robbo.noi \
-  1,4,11,16,18,27,35,45,50,51,54 128 build/performance-after
-```
-
-Current results include the PAL limit and will differ from the historical speed
-table above. Run an earlier ROM with its own matching `.noi` and a different output directory,
-then compare the saved per-tick snapshots with `diff -rq`. The previous engine's
-row counts were approximate, so omit the exact-count assertion for that build.
-The harness resolves runtime addresses from symbols; its documented field
-offsets assume the current 14-byte object layout.
-
-Optional `-Dperformance.initialCycle=257` seeds both the cycle counter and
-processed stamps at load; values 1, 257, 513, and 65521 verify the same behavior
-across stamp epochs and counter wrap. `-Dperformance.initialFrame=65520` seeds
-`sys_time` before loading the room to exercise the VBlank clock rollover.
-
-For focused laser regressions, add
-`-Dperformance.laserScenario=beams|disconnected|edges|crossings` (choose one).
-These replace the loaded room with controlled beam fixtures and isolate Robbo
-from them. Use 32 updates, active-row assertions, and separate snapshot
-directories for the two ROMs. They cover growing/returning beams in all four
-directions, missing/destroyed cannons, gaps, board boundaries, opposing and
-perpendicular beams, and mixed laser-type neighbors. For example:
-
-```sh
-java -Dperformance.assertRowCounts=true -Dperformance.laserScenario=edges \
-  --class-path "$PERFORMANCE_TEST_CP" tools/PerformanceTest.java \
-  build/robbo.gbc build/robbo.noi 18 32 build/laser-after
-```

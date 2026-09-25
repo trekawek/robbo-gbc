@@ -103,39 +103,16 @@ enter `a8` for Atari800-compatible commands, then use `c 9d NN`,
 label table if the executable changes. Let the room draw before pausing with F8
 and capturing it. All 56 rooms were checked this way against the exported palette.
 
-The earlier Atari800-only capture tool, `tools/atari_palette_reference.py`,
-remains available for comparing emulator presets.
-
 `make` regenerates `src/atari_pal.c`, the title assets and converted level data
 when their relevant palette/source inputs change.
 
-## GBC verification
+## GBC comparison results
 
-Use a built Coffee GB core and its dependency JARs on `COLOR_TEST_CP`. Generate
-matching ROM/linker symbols, including `build/render.sym`:
-
-```sh
-ORIG=third_party/lkavalon-atari/robbo
-make clean
-make -j3 LCCFLAGS_EXTRA='-Wl-m -Wl-j'
-java --class-path "$COLOR_TEST_CP" tools/ColorTest.java \
-  build/robbo.gbc build/robbo.noi "$ORIG" \
-  tools/atari_pal_palette.txt build/color-captures
-```
-
-The regression reads original metadata and `R2.ASM`'s `LOOK` table independently
-of the asset converters. It checks every room's normal, inverse, fill and HUD
-palettes, then freezes actors and scrolls through each entire map to check all
-four tile attributes of every source cell. It also checks that the exit flash
-changes only the two COLB entries and restores them after exactly four VBlanks.
-Native GBC screenshots, a 56-room contact sheet and a mismatch report are saved
-alongside the results. Optional `legacy` mode compares a previous build using
-its old palette table and reports the original attribute mismatches.
+A Coffee GB comparison checked each room's normal, inverse, fill and HUD
+palettes against the original metadata and `R2.ASM`'s `LOOK` table. It also
+checked all four tile attributes of every source cell and the exit flash.
 
 The corrected build passed all **27,776 source cells / 111,104 tile attributes**
 with zero palette-assignment differences. All 56 level/HUD palette checks and
 the four-frame flash test passed. PAL timing and camera regressions also passed;
 held movement averaged 140.644 ms/cell against the 140.391 ms PAL reference.
-
-The PAL timing and camera regression commands remain in
-[`pal-timing.md`](pal-timing.md) and the [README](../README.md).
