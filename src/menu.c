@@ -30,7 +30,7 @@ void hud_gr_init(void) __banked;
 #define LPAL      2           /* logo (rainbow-cycled)               */
 #define RPAL      3           /* dark-red horizontal rules           */
 #define IPAL      4           /* inverse-video heading (gray box)    */
-#define SDIG      224         /* small single-row digits 224..233 */
+#define TDIG      (TXT_BASE + 21) /* I.FNT text digits, same size as its letters */
 #define SCOLON    234
 #define SHYPHEN   235
 #define CURSOR    236         /* typewriter caret */
@@ -54,14 +54,8 @@ void hud_gr_init(void) __banked;
 #define CHAR_DELAY  2
 #define HOLD_LINE  28
 #define HOLD_BLANK 12
+#define HOLD_END   180         /* about three seconds to read the final lines */
 
-static const unsigned char DIGITS[10][8] = {
-    {0,0x70,0x50,0x50,0x50,0x70,0,0},{0,0x20,0x60,0x20,0x20,0x70,0,0},
-    {0,0x70,0x10,0x70,0x40,0x70,0,0},{0,0x70,0x10,0x30,0x10,0x70,0,0},
-    {0,0x50,0x50,0x70,0x10,0x10,0,0},{0,0x70,0x40,0x70,0x10,0x70,0,0},
-    {0,0x70,0x40,0x70,0x50,0x70,0,0},{0,0x70,0x10,0x20,0x20,0x20,0,0},
-    {0,0x70,0x50,0x70,0x50,0x70,0,0},{0,0x70,0x50,0x70,0x10,0x70,0,0},
-};
 static const unsigned char COLON[8]   = {0,0x18,0x18,0,0x18,0x18,0,0};
 static const unsigned char HYPHEN[8]  = {0,0,0,0x7E,0x7E,0,0,0};
 static const unsigned char CARET[8]   = {0,0,0,0,0,0,0,0x7E};
@@ -84,7 +78,7 @@ void bg_put(unsigned char x, unsigned char y, unsigned char tile, unsigned char 
     set_bkg_attributes(x, y, 1, 1, &pal);
 }
 unsigned char glyph(char c) __banked {
-    if (c >= '0' && c <= '9') return SDIG + (c - '0');
+    if (c >= '0' && c <= '9') return TDIG + (c - '0');
     switch (c) {
         case ' ': return BLANK;
         case ':': return SCOLON;
@@ -151,7 +145,6 @@ void title_gr_show(unsigned char after_ending) __banked {
     HIDE_WIN;
     SCX_REG = 0; SCY_REG = 0;
     /* logo tiles are loaded into 0..LOGO_NTILES-1 by render_gr_logo() */
-    for (d = 0; d < 10; d++) load_mono(SDIG + d, DIGITS[d]);
     load_mono(SCOLON, COLON);   load_mono(SHYPHEN, HYPHEN);
     load_mono(CURSOR, CARET);   load_mono(SCOMMA, COMMA);
     load_mono(SPERIOD, PERIOD); load_mono(SBANG, BANG);
@@ -213,7 +206,9 @@ void title_gr_show(unsigned char after_ending) __banked {
                 bg_put(BOXX + col, BOTROW, ((blink >> 3) & 1) ? CURSOR : BLANK, TPAL);
             if (col >= curlen) {
                 if (col < INSTR_WIDTH) bg_put(BOXX + col, BOTROW, BLANK, TPAL);
-                state = 1; hold = curlen ? HOLD_LINE : HOLD_BLANK;
+                state = 1;
+                hold = li_next == INSTR_NLINES ? HOLD_END :
+                       (curlen ? HOLD_LINE : HOLD_BLANK);
             } else if (delay) {
                 delay--;
             } else {
@@ -230,8 +225,14 @@ void title_gr_show(unsigned char after_ending) __banked {
                 for (r = 0; r < NVIS - 1; r++) vis[r] = vis[r + 1];
                 for (r = 0; r < NVIS - 1; r++) draw_line(BOXY + r, vis[r]);
                 draw_line(BOTROW, 0xFF);
-                if (li_next >= INSTR_NLINES) li_next = 0;
-                vis[NVIS - 1] = li_next++;
+                if (li_next < INSTR_NLINES) {
+                    vis[NVIS - 1] = li_next++;
+                } else {
+                    /* Feed five blank lines before beginning another pass,
+                       letting the last page leave like typewriter paper. */
+                    vis[NVIS - 1] = 0xFF;
+                    if (++li_next >= INSTR_NLINES + NVIS) li_next = 0;
+                }
                 col = 0; curlen = line_len(vis[NVIS - 1]);
                 state = 0; delay = 0;
             }

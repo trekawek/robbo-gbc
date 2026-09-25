@@ -210,7 +210,9 @@ void text_cell(unsigned char x, unsigned char y) __banked {
         case ':': tile = TEXT_COLON; break;
         default: tile = 128 + c - 32; break;
     }
-    palette = y == (text_page ? 11 : 3) && c != ' ' && c != '~' ? 2 : 0;
+    /* Invert the whole heading, including internal spaces, within its margins. */
+    palette = y == (text_page ? 11 : 3) &&
+              x >= (text_page ? 6 : 5) && x < (text_page ? 13 : 15) ? 2 : 0;
     set_bkg_tiles(x, y, 1, 1, &tile);
     set_bkg_attributes(x, y, 1, 1, &palette);
 }

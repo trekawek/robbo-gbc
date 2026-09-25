@@ -40,13 +40,14 @@ PARAGRAPHS = [
     "HAVE FUN! - THE AUTHOR",
     "",
     "THE ORIGINAL ATARI XL AND XE EDITION WAS RELEASED IN 1989. "
-    "IT WAS CREATED BY JANUSZ PELC AND PUBLISHED BY LK AVALON.",
+    "IT WAS CREATED BY JANUSZ PELC AND PUBLISHED BY LK\u00a0AVALON.",
 ]
 
 def wrap(text, width):
-    """greedy word-wrap; hard-split only words longer than the window."""
+    """Word-wrap, keeping groups joined by non-breaking spaces on one line."""
     lines, cur = [], ""
-    for w in text.split():
+    for w in re.findall(r"[^ \t\r\n]+", text):
+        w = w.replace("\u00a0", " ")  # keep the ROM's text in the ASCII font
         while len(w) > width:                  # overlong token: hard split
             if cur:
                 lines.append(cur); cur = ""
