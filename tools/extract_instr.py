@@ -2,9 +2,9 @@
 r"""Emit Robbo's scrolling instruction text (English) for title.c.
 
 The original Atari game shows Polish instructions with a vertical typewriter
-scroll (see d1/TITLE.ASM, label INST).  Here we ship an English translation
-followed by credits for the original edition, greedily word-wrapped to the
-GBC's 20-column display width so words never split across the line break.  The one
+scroll (see d1/TITLE.ASM, label INST).  Here we ship an English translation,
+greedily word-wrapped to the GBC's 20-column display width so words never split
+across the line break.  The one
 hardware-specific control hint (the Atari "press ESC to give up") is localized
 to the Game Boy equivalent (pause with START, choose RESTART).
 
@@ -12,12 +12,12 @@ Output: src/gen/instr.h  -  INSTR[][INSTR_WIDTH+1], one display line per row,
 "" rows are paragraph spacers.  Run via the Makefile (argv: <orig> <outdir>);
 <orig> is accepted for build-rule compatibility but unused.
 """
-import sys, os, re
+import sys, os
 
 WRAP = 20   # display window width: the full GBC screen width, mirroring the
             # Atari's full-screen-width instruction window
 
-# English instructions and original edition credits; '' = paragraph break.
+# English instructions; '' = paragraph break.
 PARAGRAPHS = [
     "INSTRUCTIONS",
     "",
@@ -38,16 +38,12 @@ PARAGRAPHS = [
     "REMEMBER: EVERY PLANET CAN BE COMPLETED!",
     "",
     "HAVE FUN! - THE AUTHOR",
-    "",
-    "THE ORIGINAL ATARI XL AND XE EDITION WAS RELEASED IN 1989. "
-    "IT WAS CREATED BY JANUSZ PELC AND PUBLISHED BY LK\u00a0AVALON.",
 ]
 
 def wrap(text, width):
-    """Word-wrap, keeping groups joined by non-breaking spaces on one line."""
+    """Greedy word-wrap; hard-split only words longer than the window."""
     lines, cur = [], ""
-    for w in re.findall(r"[^ \t\r\n]+", text):
-        w = w.replace("\u00a0", " ")  # keep the ROM's text in the ASCII font
+    for w in text.split():
         while len(w) > width:                  # overlong token: hard split
             if cur:
                 lines.append(cur); cur = ""

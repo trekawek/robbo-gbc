@@ -64,10 +64,8 @@ game randomness. The raster wipe uses the GBC window; its timing and direction
 match Atari, with a simplified brightness band.
 
 The intro translation also clarifies that START opens the pause menu and the
-player must choose RESTART. A separate paragraph credits the original Atari
-XL/XE edition, released in 1989, created by Janusz Pelc and published by LK
-Avalon. The year and credits appear on the original title screen and in the
-[Atarimania archive](https://www.atarimania.com/games/atari-400-800-xl-xe-games-robbo-4396/print?print=1).
+player must choose RESTART. It ends with the original author's sign-off;
+the title screen already credits Janusz Pelc and Avalon.
 
 ## Verification
 
