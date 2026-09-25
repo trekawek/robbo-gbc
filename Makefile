@@ -6,6 +6,7 @@ SRCDIR := src
 GENDIR := src/gen
 BUILD  := build
 ROM    := $(BUILD)/robbo.gbc
+ITCH_ZIP := $(BUILD)/robbo-itch.zip
 TITLE  := ROBBO
 
 # Assets converted at build time: the Atari original supplies the font, sound
@@ -52,8 +53,13 @@ OBJS := $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS))) \
 # every object includes one or more generated headers (below: order-only dep)
 GENHDRS := $(GFXH) $(SOUNDH) $(INSTRH) $(SRCDIR)/levels_data.h
 
-.PHONY: all clean
+.PHONY: all clean itch
 all: $(ROM)
+
+itch: $(ITCH_ZIP)
+
+$(ITCH_ZIP): $(ROM) tools/package_itch.py
+	$(PY) tools/package_itch.py --rom $(ROM) --output $@
 
 # make the generated headers exist before any compile (order-only: regenerating
 # a header doesn't force a full rebuild).  Placed after `all` so it stays default.
