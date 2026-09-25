@@ -12,6 +12,10 @@
 #define BLANK 0x40
 #define PATTERN_TILE 245
 #define WIPE_TILE 246
+#define TEXT_BANG 247
+#define TEXT_PERIOD 248
+#define TEXT_COMMA 249
+#define TEXT_COLON 250
 #define GROUND_ROW 16
 #define FEET_ROW 14
 #define SHIP_COL 8
@@ -28,29 +32,64 @@ static const palette_color_t scene_palettes[8] = {
     END_COLOR_BG, END_COLOR_PF0, END_COLOR_PF1, END_COLOR_PF2,
     END_COLOR_BG, END_COLOR_PF0, END_COLOR_PF1, END_COLOR_PF3
 };
-static const char message[18][21] = {
-    "~~~~~~~~~~~~~~~~~~~~",
-    "~                  ~",
-    "~                  ~",
-    "~ CONGRATULATIONS  ~",
-    "~                  ~",
-    "~                  ~",
-    "~ ROBBO HAS BROKEN ~",
-    "~THROUGH THE ENEMY ~",
-    "~ PLANETARY SYSTEM ~",
-    "~                  ~",
-    "~ THE PLANS IN HIS ~",
-    "~ MEMORY ARE VERY  ~",
-    "~VALUABLE TO EARTH ~",
-    "~                  ~",
-    "~                  ~",
-    "~   PRESS START    ~",
-    "~                  ~",
-    "~~~~~~~~~~~~~~~~~~~~"
+/* Each page has an 18-column interior. The second keeps Avalon's original
+   publisher message; START advances pages before the final closing wipe. */
+static const char message[2][18][21] = {
+    {
+        "~~~~~~~~~~~~~~~~~~~~",
+        "~                  ~",
+        "~                  ~",
+        "~    WELL DONE!    ~",
+        "~                  ~",
+        "~ROBBO HAS ESCAPED ~",
+        "~   THE HOSTILE    ~",
+        "~PLANETARY SYSTEM. ~",
+        "~                  ~",
+        "~ THE PLANS STORED ~",
+        "~IN HIS MEMORY ARE ~",
+        "~OF GREAT VALUE TO ~",
+        "~      EARTH!      ~",
+        "~                  ~",
+        "~                  ~",
+        "~START TO CONTINUE ~",
+        "~                  ~",
+        "~~~~~~~~~~~~~~~~~~~~"
+    },
+    {
+        "~~~~~~~~~~~~~~~~~~~~",
+        "~                  ~",
+        "~YOU HAVE COMPLETED~",
+        "~ OUR FIRST GAME.  ~",
+        "~IF YOU ENJOYED IT,~",
+        "~ LOOK OUT FOR OUR ~",
+        "~  NEXT RELEASES.  ~",
+        "~                  ~",
+        "~    REMEMBER:     ~",
+        "~  THE BEST GAMES  ~",
+        "~    COME FROM     ~",
+        "~     AVALON!      ~",
+        "~                  ~",
+        "~                  ~",
+        "~                  ~",
+        "~   PRESS START    ~",
+        "~                  ~",
+        "~~~~~~~~~~~~~~~~~~~~"
+    }
+};
+
+/* I.FNT's punctuation positions hold Atari icons. Supply the same marks as
+   the title font explicitly, in four otherwise unused ending tiles. */
+static const unsigned char text_punctuation[64] = {
+    0x20,0x20, 0x20,0x20, 0x20,0x20, 0x20,0x20,
+    0x20,0x20, 0,0, 0x20,0x20, 0,0,                 /* ! */
+    0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0x60,0x60, 0x60,0x60, /* . */
+    0,0, 0,0, 0,0, 0,0, 0,0, 0x30,0x30, 0x30,0x30, 0x60,0x60, /* , */
+    0,0, 0x18,0x18, 0x18,0x18, 0,0,
+    0,0, 0x18,0x18, 0x18,0x18, 0,0                /* : */
 };
 
 static unsigned int frame_deadline, pal_fraction, reveal_rng;
-static unsigned char pal_frame, pattern_active, ship_row;
+static unsigned char pal_frame, pattern_active, ship_row, text_page;
 
 void pattern_draw(void) __banked {
     unsigned char tile[16], row, bits;
@@ -162,9 +201,16 @@ void text_palette(palette_color_t foreground, palette_color_t background) __bank
 }
 
 void text_cell(unsigned char x, unsigned char y) __banked {
-    unsigned char c = message[y][x], tile, palette;
-    tile = c == '~' ? PATTERN_TILE : 128 + c - 32;
-    palette = y == 3 && c != ' ' && c != '~' ? 2 : 0;
+    unsigned char c = message[text_page][y][x], tile, palette;
+    switch (c) {
+        case '~': tile = PATTERN_TILE; break;
+        case '!': tile = TEXT_BANG; break;
+        case '.': tile = TEXT_PERIOD; break;
+        case ',': tile = TEXT_COMMA; break;
+        case ':': tile = TEXT_COLON; break;
+        default: tile = 128 + c - 32; break;
+    }
+    palette = y == (text_page ? 11 : 3) && c != ' ' && c != '~' ? 2 : 0;
     set_bkg_tiles(x, y, 1, 1, &tile);
     set_bkg_attributes(x, y, 1, 1, &palette);
 }
@@ -224,22 +270,27 @@ void ending_text(void) __banked {
     unsigned char tiles[20], attrs[20], x, y;
     DISPLAY_OFF;
     HIDE_SPRITES;
-    text_palette(0, 0);
-    pattern_active = 1;
-    pattern_draw();
-    for (x = 0; x < 20; x++) { tiles[x] = PATTERN_TILE; attrs[x] = 0; }
-    for (y = 0; y < 18; y++) {
-        set_bkg_tiles(0, y, 20, 1, tiles);
-        set_bkg_attributes(0, y, 20, 1, attrs);
+    set_bkg_data(TEXT_BANG, 4, text_punctuation);
+    for (text_page = 0; text_page < 2; text_page++) {
+        DISPLAY_OFF;
+        text_palette(0, 0);
+        pattern_active = 1;
+        pattern_draw();
+        for (x = 0; x < 20; x++) { tiles[x] = PATTERN_TILE; attrs[x] = 0; }
+        for (y = 0; y < 18; y++) {
+            set_bkg_tiles(0, y, 20, 1, tiles);
+            set_bkg_attributes(0, y, 20, 1, attrs);
+        }
+        DISPLAY_ON;
+        ending_clock_reset();
+        for (y = 0; y < 15; y++) { text_palette(fade_colors[y], 0); ewait(3); }
+        text_palette(fade_colors[14], END_TEXT_BG);
+        if (!text_page) snd_play(0);
+        reveal_rng = 0xACE1;
+        do { reveal_cells(); ewait(1); } while (!(joypad() & J_START));
+        /* One press advances one page, even when START is held down. */
+        waitpadup();
     }
-    DISPLAY_ON;
-    ending_clock_reset();
-    for (y = 0; y < 15; y++) { text_palette(fade_colors[y], 0); ewait(3); }
-    text_palette(fade_colors[14], END_TEXT_BG);
-    snd_play(0);
-    reveal_rng = 0xACE1;
-    do { reveal_cells(); ewait(1); } while (!(joypad() & J_START));
-    waitpadup();
     text_wipe();
     DISPLAY_OFF;
     HIDE_WIN;

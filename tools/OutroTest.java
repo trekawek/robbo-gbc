@@ -33,6 +33,14 @@ public class OutroTest implements AutoCloseable {
     private static final int WIDTH = 16, HEIGHT = 31, CELL_BYTES = 14;
     private static final int KEY = 7, LCDC = 0xff40, WY = 0xff4a, NR42 = 0xff21;
     private static final int WAVE_A = 24, WAVE_B = 28;
+    private static final String[][] ENDING_PAGES = {
+        {"", "", "", "WELL DONE!", "", "ROBBO HAS ESCAPED", "THE HOSTILE",
+                "PLANETARY SYSTEM.", "", "THE PLANS STORED", "IN HIS MEMORY ARE",
+                "OF GREAT VALUE TO", "EARTH!", "", "", "START TO CONTINUE", "", ""},
+        {"", "", "YOU HAVE COMPLETED", "OUR FIRST GAME.", "IF YOU ENJOYED IT,",
+                "LOOK OUT FOR OUR", "NEXT RELEASES.", "", "REMEMBER:",
+                "THE BEST GAMES", "COME FROM", "AVALON!", "", "", "", "PRESS START", "", ""}
+    };
     private final EventBus bus = new EventBusImpl();
     private final Gameboy gb;
     private final Map<String, Integer> symbols = new HashMap<>();
@@ -47,7 +55,8 @@ public class OutroTest implements AutoCloseable {
     private int textFirstFrame = -1, textLastChangeFrame, textMapChanges;
     private int textBorderChanges, lastTextHash, lastBorderHash;
     private int fadePaletteChanges, lastFadePaletteHash;
-    private boolean sawTextMap, sawBorder, sawFadePalette;
+    private boolean sawTextMap, sawBorder, sawFadePalette, awaitTextPattern;
+    private String pageCapturePrefix = "text";
     private boolean watchWipe, sawWipeWindow;
     private int lastWipeY = -1, wipeMovement;
     private String captureNext;
@@ -99,6 +108,18 @@ public class OutroTest implements AutoCloseable {
         if (wavePoses == 1 && frames - waveStarts[0] == 2)
             capture(event, "scene-wave");
         if (wavePoses < 28) return;
+        int glyphs = 0, mapHash = 1;
+        for (int row = 1; row < 17; row++) for (int col = 1; col < 19; col++) {
+            int code = gb.getGpu().getVideoRam0().getByte(0x9800 + row * 32 + col) & 255;
+            if (code >= 128 && code < 224) glyphs++;
+            mapHash = mapHash * 31 + code;
+        }
+        // The old page remains visible until START is released. Begin the
+        // second page's trace only when its patterned screen has replaced it.
+        if (awaitTextPattern) {
+            if (glyphs != 0) return;
+            awaitTextPattern = false;
+        }
         int paletteHash = 1;
         byte[] palette = gb.getGpu().captureBessBackgroundPalettes();
         for (int i = 0; i < 16; i++) paletteHash = paletteHash * 31 + palette[i];
@@ -107,14 +128,8 @@ public class OutroTest implements AutoCloseable {
         sawFadePalette = true;
         lastFadePaletteHash = paletteHash;
         if (fadePaletteChanges == 4 && textFirstFrame < 0)
-            capture(event, "text-fade");
+            capture(event, pageCapturePrefix + "-fade");
 
-        int glyphs = 0, mapHash = 1;
-        for (int row = 1; row < 17; row++) for (int col = 1; col < 19; col++) {
-            int code = gb.getGpu().getVideoRam0().getByte(0x9800 + row * 32 + col) & 255;
-            if (code >= 128 && code < 224) glyphs++;
-            mapHash = mapHash * 31 + code;
-        }
         if (glyphs == 0) return;
         if (textFirstFrame < 0) textFirstFrame = frames;
         if (sawTextMap && mapHash != lastTextHash) {
@@ -123,7 +138,7 @@ public class OutroTest implements AutoCloseable {
         }
         sawTextMap = true;
         lastTextHash = mapHash;
-        if (textMapChanges == 20) capture(event, "text-reveal");
+        if (textMapChanges == 20) capture(event, pageCapturePrefix + "-reveal");
 
         int[] pixels = event.pixels();
         int borderHash = 1;
@@ -208,15 +223,41 @@ public class OutroTest implements AutoCloseable {
                     "menu/ending text " + text + " differs at " + (x + i) + "," + y);
         }
     }
-    private boolean endingTextReady() {
-        String heading = "CONGRATULATIONS", prompt = "PRESS START";
-        for (int i = 0; i < heading.length(); i++)
-            if ((gb.getGpu().getVideoRam0().getByte(0x9800 + 3 * 32 + 2 + i) & 255) !=
-                    128 + heading.charAt(i) - 32) return false;
-        for (int i = 0; i < prompt.length(); i++)
-            if ((gb.getGpu().getVideoRam0().getByte(0x9800 + 15 * 32 + 4 + i) & 255) !=
-                    128 + prompt.charAt(i) - 32) return false;
+    private static int endingGlyph(char c) {
+        return switch (c) {
+            case '~' -> 245;
+            case '!' -> 247;
+            case '.' -> 248;
+            case ',' -> 249;
+            case ':' -> 250;
+            default -> 128 + c - 32;
+        };
+    }
+    private boolean endingTextReady(int page) {
+        for (int y = 0; y < 18; y++) for (int x = 0; x < 20; x++) {
+            String line = ENDING_PAGES[page][y];
+            int start = 1 + (18 - line.length()) / 2;
+            char c = x == 0 || x == 19 || y == 0 || y == 17 ? '~'
+                    : x >= start && x < start + line.length() ? line.charAt(x - start) : ' ';
+            int actual = gb.getGpu().getVideoRam0().getByte(0x9800 + y * 32 + x) & 255;
+            if (actual != endingGlyph(c)) return false;
+        }
         return true;
+    }
+    private void awaitEndingPage(int page) {
+        int deadline = frames + 1800;
+        while (!endingTextReady(page)) {
+            check(frames < deadline, "timeout waiting for complete ending page " + (page + 1));
+            runFrames(1);
+        }
+    }
+    private void traceSecondPage() {
+        pageCapturePrefix = "publisher";
+        textFirstFrame = -1;
+        textLastChangeFrame = textMapChanges = textBorderChanges = fadePaletteChanges = 0;
+        sawTextMap = sawBorder = sawFadePalette = false;
+        awaitTextPattern = true;
+        watchEnding = true;
     }
 
     private void test() {
@@ -264,7 +305,7 @@ public class OutroTest implements AutoCloseable {
         next(symbol("_ending_gr_show"));
         endingStartFrame = frames;
         watchEnding = true;
-        until(this::endingTextReady, "ending congratulations screen");
+        awaitEndingPage(0);
         captureNext = "text-complete";
         runFrames(2); // include the completed text in the frame-level trace
         watchEnding = false;
@@ -293,6 +334,36 @@ public class OutroTest implements AutoCloseable {
                 "patterned border did not animate while the text appeared");
         check(b(WY) == 0 || (b(LCDC) & 0x20) == 0,
                 "ending left the pause window covering its scene");
+        int firstPageFrame = frames;
+        System.out.printf("First outro page: scene-to-text=%d, full-text=%d, "
+                        + "wave poses=%d, fade steps=%d, text states=%d over %d frames, "
+                        + "border states=%d%n",
+                textFirstFrame - endingStartFrame, firstPageFrame - endingStartFrame,
+                wavePoses, fadePaletteChanges, textMapChanges,
+                textLastChangeFrame - textFirstFrame, textBorderChanges);
+        traceSecondPage();
+        press(Button.START);
+        runFrames(120);
+        check(endingTextReady(0), "held START advanced before release or skipped the publisher page");
+        check((b(LCDC) & 0x20) == 0, "first page START triggered the final wipe");
+        release(Button.START);
+        int secondPageStart = frames;
+        awaitEndingPage(1);
+        captureNext = "publisher-complete";
+        runFrames(2);
+        watchEnding = false;
+        check(textFirstFrame - secondPageStart >= 50,
+                "publisher page skipped its PAL-paced fade");
+        check(fadePaletteChanges >= 7,
+                "publisher page did not show a gradual palette fade");
+        check(textLastChangeFrame - textFirstFrame >= 90 && textMapChanges >= 20,
+                "publisher page did not reveal through intermediate screen states");
+        check(textBorderChanges >= 8, "publisher page border did not animate");
+        check((b(LCDC) & 0x20) == 0, "publisher page started the final wipe without a second START");
+        System.out.printf("Publisher page: full-text=%d frames, fade steps=%d, "
+                        + "text states=%d over %d frames, border states=%d%n",
+                frames - secondPageStart, fadePaletteChanges, textMapChanges,
+                textLastChangeFrame - textFirstFrame, textBorderChanges);
         int exitStartFrame = frames;
         watchWipe = true;
         press(Button.START);
@@ -319,13 +390,8 @@ public class OutroTest implements AutoCloseable {
         int previewCue = b(NR42) >> 4;
         check(previewCue > 0, "closing sound cue stopped after gameplay resumed"
                 + " (NR42=" + Integer.toHexString(b(NR42)) + ")");
-        System.out.printf("Outro frames: scene-to-text=%d, full-text=%d, "
-                        + "wave poses=%d, fade steps=%d, text states=%d over %d frames, "
-                        + "border states=%d, wipe steps=%d over %d frames, return cue=%d%n",
-                textFirstFrame - endingStartFrame, exitStartFrame - endingStartFrame,
-                wavePoses, fadePaletteChanges,
-                textMapChanges, textLastChangeFrame - textFirstFrame,
-                textBorderChanges, wipeMovement, frames - exitStartFrame, previewCue);
+        System.out.printf("Outro exit: wipe steps=%d over %d frames, return cue=%d%n",
+                wipeMovement, frames - exitStartFrame, previewCue);
         captureNext = "game-return";
         runFrames(2);
         press(Button.START);
@@ -340,7 +406,7 @@ public class OutroTest implements AutoCloseable {
         runFrames(2);
         release(Button.A);
         next(symbol("_title_gr_show"));
-        System.out.println("PASS pause-menu OUTRO preview, ending, state preservation, second pause and QUIT");
+        System.out.println("PASS pause-menu OUTRO preview, both text pages, held START, state preservation, second pause and QUIT");
     }
 
     private void testCanonicalEnding() {
@@ -353,7 +419,9 @@ public class OutroTest implements AutoCloseable {
         // this check concerns its distinct return route, not puzzle completion.
         putWord(symbol("_game_mode"), 2);
         next(symbol("_ending_gr_show"));
-        until(this::endingTextReady, "canonical ending congratulations screen");
+        awaitEndingPage(0);
+        tap(Button.START);
+        awaitEndingPage(1);
         press(Button.START);
         runFrames(2);
         release(Button.START);

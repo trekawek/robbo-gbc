@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 r"""Emit Robbo's scrolling instruction text (English) for title.c.
 
-The original Atari game shows a Polish instruction with a vertical typewriter
-scroll in a 12-column window (see d1/TITLE.ASM, label INST).  Here we ship a
-faithful ENGLISH translation of that text, greedily word-wrapped to the same
-12-column display width so words never split across the line break.  The one
+The original Atari game shows Polish instructions with a vertical typewriter
+scroll (see d1/TITLE.ASM, label INST).  Here we ship an English translation
+followed by credits for the original edition, greedily word-wrapped to the
+GBC's 20-column display width so words never split across the line break.  The one
 hardware-specific control hint (the Atari "press ESC to give up") is localized
 to the Game Boy equivalent (pause with START, choose RESTART).
 
@@ -17,25 +17,30 @@ import sys, os, re
 WRAP = 20   # display window width: the full GBC screen width, mirroring the
             # Atari's full-screen-width instruction window
 
-# Faithful English translation of the original instruction; '' = paragraph break.
+# English instructions and original edition credits; '' = paragraph break.
 PARAGRAPHS = [
     "INSTRUCTIONS",
     "",
-    "ROBBO MUST CROSS A HARD ROAD THROUGH 56 PLANETS TO ESCAPE THE "
-    "HOSTILE PLANET SYSTEM IN WHICH HE WAS CUNNINGLY IMPRISONED.",
+    "ROBBO FACES A DIFFICULT JOURNEY ACROSS 56 PLANETS TO ESCAPE THE "
+    "HOSTILE PLANETARY SYSTEM WHERE HE WAS TRICKED AND IMPRISONED.",
     "",
-    "ON EACH PLANET A SMALL CAPSULE WAITS FOR HIM, ABLE TO FLY TO THE "
-    "NEXT PLANET. SADLY, MOST CAPSULES ARE INCOMPLETE, SO ROBBO MUST "
-    "GATHER ENOUGH PARTS SCATTERED OVER THE PLANET. EVIL CREATURES, "
-    "THE LOCALS OF THE SYSTEM, WILL BLOCK HIS WAY. ON HIS TREK ROBBO "
-    "FINDS MANY OBJECTS. LEARN WHAT THEY DO. TRY TO PUSH, GATHER OR "
-    "SHOOT THEM.",
+    "A SMALL CAPSULE AWAITS HIM ON EACH PLANET, READY TO CARRY HIM "
+    "TO THE NEXT. UNFORTUNATELY, MOST CAPSULES ARE MISSING PARTS. "
+    "ROBBO MUST COLLECT ENOUGH PARTS SCATTERED ACROSS THE PLANET TO "
+    "REPAIR THEM.",
     "",
-    "IF ROBBO GETS STUCK WITH NO WAY OUT, PRESS START TO RESTART THE PLANET.",
+    "THE HOSTILE CREATURES THAT INHABIT THIS SYSTEM WILL TRY TO STOP HIM. "
+    "ALONG THE WAY, ROBBO WILL FIND MANY DIFFERENT OBJECTS. DISCOVER "
+    "WHAT THEY DO: TRY PUSHING THEM, PICKING THEM UP, OR SHOOTING THEM.",
     "",
-    "REMEMBER, EVERY PLANET CAN BE BEATEN!",
+    "IF ROBBO GETS STUCK WITH NO WAY OUT, PRESS START AND CHOOSE RESTART.",
+    "",
+    "REMEMBER: EVERY PLANET CAN BE COMPLETED!",
     "",
     "HAVE FUN! - THE AUTHOR",
+    "",
+    "THE ORIGINAL ATARI XL AND XE EDITION WAS RELEASED IN 1989. "
+    "IT WAS CREATED BY JANUSZ PELC AND PUBLISHED BY LK AVALON.",
 ]
 
 def wrap(text, width):

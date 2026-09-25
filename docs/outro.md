@@ -49,12 +49,25 @@ The second standing pose is extracted from S.FNT alongside the existing frames.
 - Reveal whole character cells at random, including spaces, over roughly
   three seconds. The border remains animated after the message appears.
 - Use an inverse heading and the Atari `$02` text background.
-- On Start, sweep a bright horizontal band upward over 117 PAL frames.
+- On the final Start press, sweep a bright horizontal band upward over 117 PAL frames.
 
-The existing English message is laid out within a one-character border to fit
-the GBC screen. A separate random generator keeps pause-menu previews from
-changing subsequent game randomness. The raster wipe uses the GBC window;
-its timing and direction match Atari, with a simplified brightness band.
+The revised English translation occupies two pages within a one-character
+border. The first congratulates Robbo on escaping and explains the value of
+the plans stored in his memory. START advances to the restored original
+publisher message: completing Avalon's first game, looking out for its next
+releases, and the closing Avalon slogan. Each page uses the patterned fade and
+random reveal; the final START triggers the closing wipe. Holding START cannot
+skip the second page. The original explosion cue plays only on the first page.
+
+A separate random generator keeps pause-menu previews from changing subsequent
+game randomness. The raster wipe uses the GBC window; its timing and direction
+match Atari, with a simplified brightness band.
+
+The intro translation also clarifies that START opens the pause menu and the
+player must choose RESTART. A separate paragraph credits the original Atari
+XL/XE edition, released in 1989, created by Janusz Pelc and published by LK
+Avalon. The year and credits appear on the original title screen and in the
+[Atarimania archive](https://www.atarimania.com/games/atari-400-800-xl-xe-games-robbo-4396/print?print=1).
 
 ## Verification
 
@@ -67,8 +80,8 @@ java --class-path "$CAMERA_TEST_CP" tools/OutroTest.java \
   build/robbo.gbc build/robbo.noi
 ```
 
-The regression observes rendered wave poses and their cadence, the palette
-fade, intermediate text states, animated border, closing wipe, and return to
+The regression observes rendered wave poses and their cadence, both complete
+text pages, their transitions, the animated border, closing wipe, and return to
 the same board with level, score, position, and ammo preserved. It also checks
 the normal ending-to-title path and that the closing sound plays after both
 returns.
