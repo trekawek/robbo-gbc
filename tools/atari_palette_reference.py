@@ -4,7 +4,7 @@
 Needs atari800, mads, Xvfb, and Python packages python-xlib, pexpect, Pillow.
 Example:
   python3 tools/atari_palette_reference.py \
-    /home/newton/dev/lkavalon-atari/robbo /tmp/robbo-colors-reference
+    third_party/lkavalon-atari/robbo /tmp/robbo-colors-reference
 
 Uses an isolated, freshly generated emulator config. PNGs come directly from
 Atari800's F10 screenshot writer; their indexed palette is never converted by

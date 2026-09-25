@@ -19,7 +19,7 @@ included. Global polynomial phase is arbitrary when a gameplay effect starts;
 running divider and output latch. WAVs use one fixed gain across all effects.
 
 Requires numpy and scipy. Example:
-    python3 tools/sound_reference.py ../lkavalon-atari/robbo/d1/R1.ASM
+    python3 tools/sound_reference.py third_party/lkavalon-atari/robbo/d1/R1.ASM
 """
 
 import argparse
@@ -167,7 +167,7 @@ def write_wav(path, samples, rate):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, nargs="?", default=(
-        Path(__file__).resolve().parents[2] / "lkavalon-atari/robbo/d1/R1.ASM"))
+        Path(__file__).resolve().parents[1] / "third_party/lkavalon-atari/robbo/d1/R1.ASM"))
     parser.add_argument("--output", type=Path,
                         default=Path("build/sound-test/reference"))
     parser.add_argument("--rate", type=int, default=48_000)

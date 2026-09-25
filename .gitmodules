@@ -1,0 +1,3 @@
+[submodule "third_party/lkavalon-atari"]
+	path = third_party/lkavalon-atari
+	url = https://github.com/trekawek/atari-robbo.git

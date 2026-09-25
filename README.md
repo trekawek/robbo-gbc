@@ -43,14 +43,17 @@ Opening it takes about 0.1 seconds; once it appears, game timing matches the nor
 
 ## Build
 
-Requires the bundled GBDK-2020 (in `third_party/gbdk/`) and `python3`. Asset conversion reads the
-original Atari game data (font, sound, text, levels and palettes); override its location with
-`ORIG=` if it lives elsewhere:
+Requires GBDK-2020 in `third_party/gbdk/` and `python3`. Initialize the Atari
+source submodule before building:
 
 ```sh
+git submodule update --init third_party/lkavalon-atari
 make            # regenerates assets + levels, builds build/robbo.gbc
 make clean
 ```
+
+Asset conversion reads the Atari font, sound, text, levels and palettes from
+`third_party/lkavalon-atari/robbo/`. Override its location with `ORIG=` if needed.
 
 Output: `build/robbo.gbc` — a CGB ROM (MBC5) that runs in any Game Boy Color emulator or on
 hardware via a flashcart.

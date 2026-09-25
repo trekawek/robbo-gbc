@@ -83,6 +83,7 @@ ROM palette can reproduce Altirra's `0,30,171` blue in that display mode.
 Run the original executable in Altirra on PAL timing with artifacting disabled:
 
 ```sh
+ORIG=third_party/lkavalon-atari/robbo
 wine64 /opt/altirra/Altirra64.exe /w /pal /artifact:none \
   /run "$(winepath -w "$ORIG/bin/robbo.xex")"
 ```
@@ -114,6 +115,7 @@ Use a built Coffee GB core and its dependency JARs on `COLOR_TEST_CP`. Generate
 matching ROM/linker symbols, including `build/render.sym`:
 
 ```sh
+ORIG=third_party/lkavalon-atari/robbo
 make clean
 make -j3 LCCFLAGS_EXTRA='-Wl-m -Wl-j'
 java --class-path "$COLOR_TEST_CP" tools/ColorTest.java \

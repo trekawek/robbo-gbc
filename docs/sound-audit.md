@@ -83,7 +83,7 @@ Coffee GB core and its dependency JARs, using absolute paths:
 ```sh
 make
 make sound-test SOUND_TEST_CP="$SOUND_TEST_CP"
-python3 tools/sound_reference.py "$HOME/dev/lkavalon-atari/robbo/d1/R1.ASM"
+python3 tools/sound_reference.py third_party/lkavalon-atari/robbo/d1/R1.ASM
 ```
 
 The Java harness links the production player into a small test ROM and reads
