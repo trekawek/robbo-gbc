@@ -49,6 +49,11 @@ def package(rom: Path, output: Path, checkout: Path | None) -> None:
     js, count = re.subn(r"const CGB_COLOR_CURVE = \d+;", "const CGB_COLOR_CURVE = 0;", js, count=1)
     if count != 1:
         raise ValueError("binjgb simple.js changed; cannot set the color curve")
+    old_keys = "'KeyZ': this.setJoypB.bind(this),\n      'KeyX': this.setJoypA.bind(this),"
+    new_keys = "'KeyZ': this.setJoypA.bind(this),\n      'KeyX': this.setJoypB.bind(this),"
+    if js.count(old_keys) != 1:
+        raise ValueError("binjgb simple.js changed; cannot set the keyboard buttons")
+    js = js.replace(old_keys, new_keys)
     assets["simple.js"] = js.encode("utf-8")
 
     css = assets["simple.css"].decode("utf-8")
