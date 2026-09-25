@@ -2,10 +2,14 @@
 
 <img src="docs/robbo-gbc-cover-first-1024.png" width="25%"/>
 
-ROBBO is a puzzle game created by Janusz Pelc and published by LK Avalon in 1989
-for Atari 8-bit computers. One of the first commercial Polish games, it became a
-[landmark of Polish gaming history](https://culture.pl/pl/tworca/lk-avalon).
+Robbo is a classic puzzle game created in 1989 for Atari 8-bit computers. It was
+a major success in Poland and is still [considered one of the country's best games](https://technologia.dziennik.pl/gry/artykuly/595048,robbo-wiedzmin-3-polskie-gry-komputerowe.html).
 
-This project is a port of ROBBO for the Nintendo Game Boy Color.
+Robbo has appeared on many platforms, including through the open-source
+[GNU Robbo](https://gnurobbo.sourceforge.net/) project. This Game Boy Color port
+stays faithful to the Atari original, with 56 levels featuring Sokoban-style box
+pushing, monsters, cannons, and magnets.
+
+Enjoy!
 
 ![ROBBO gameplay on Game Boy Color](docs/gameplay.gif)
