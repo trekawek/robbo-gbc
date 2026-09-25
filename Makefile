@@ -93,7 +93,7 @@ $(BUILD)/gfx_tiles.o: $(GFX) | $(BUILD)
 	$(LCC) $(LCCFLAGS) -c -o $@ $<
 
 # generated-header dependencies (so these .o rebuild when assets regenerate)
-$(BUILD)/render.o: $(GFXH)
+$(BUILD)/render.o $(BUILD)/ending.o: $(GFXH)
 $(BUILD)/render.o $(BUILD)/glue.o $(BUILD)/overview.o: $(SRCDIR)/render.h
 $(BUILD)/glue.o $(BUILD)/overview.o: $(SRCDIR)/game.h
 $(BUILD)/menu.o:   $(INSTRH)

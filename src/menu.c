@@ -134,7 +134,7 @@ extern unsigned int gr_logo_rainbow[LOGO_RAINBOW_N][4];
      [5-line instruction window]   <- typewriter; INSTRUCTIONS heading inverse
      ---------------------         <- dark-red rule
    No PRESS START: like the Atari, it just waits (START or A begins). */
-void title_gr_show(void) __banked {
+void title_gr_show(unsigned char after_ending) __banked {
     unsigned char x, y, d, r;
     unsigned char vis[NVIS];
     unsigned char li_next, col, curlen, state, delay, hold, blink, hue;
@@ -145,7 +145,8 @@ void title_gr_show(void) __banked {
     const palette_color_t rpal[4] = { 0x0000, 0x0000, 0x0000, 0x040A };
     const palette_color_t ipal[4] = { 0x4631, 0x4631, 0x18C6, 0x0000 };
 
-    snd_stop();
+    /* Atari's closing sound continues over the returning title screen. */
+    if (!after_ending) snd_stop();
     DISPLAY_OFF;
     HIDE_WIN;
     SCX_REG = 0; SCY_REG = 0;
@@ -195,9 +196,12 @@ void title_gr_show(void) __banked {
     col = 0; curlen = line_len(vis[NVIS - 1]);
     state = 0; delay = 0; hold = 0; blink = 0;
 
+    /* Give the 64-PAL-frame closing cue the noise channel before typing clicks. */
+    after_ending = after_ending ? 80 : 0;
     SHOW_BKG; DISPLAY_ON;
     while (1) {
         wait_vbl_done();
+        if (after_ending) after_ending--;
         blink++;
         /* rainbow: advance the logo hue every 8 frames (~2s per full cycle) */
         if ((blink & 7) == 0) {
@@ -216,7 +220,7 @@ void title_gr_show(void) __banked {
                 char c = INSTR[vis[NVIS - 1]][col];
                 bg_put(BOXX + col, BOTROW, glyph(c),
                        (vis[NVIS - 1] == 0 && c != ' ') ? IPAL : TPAL);
-                if (c != ' ') click();
+                if (c != ' ' && !after_ending) click();
                 col++; delay = CHAR_DELAY;
             }
         } else {

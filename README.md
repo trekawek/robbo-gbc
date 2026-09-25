@@ -85,8 +85,10 @@ ticks and incorrectly shifted rows. Keep the matching `glue.sym` beside `robbo.n
 Native screenshots without LCD colour correction are saved in `build/overview-captures/`.
 
 `java --class-path "$CAMERA_TEST_CP" tools/OutroTest.java build/robbo.gbc
-build/robbo.noi` checks the pause-menu outro, ending screen, and return to the
-same level with progress intact.
+build/robbo.noi` checks the pause-menu outro, all 14 waving cycles and their
+cadence, patterned text fade/reveal, closing wipe, and return to the same level
+with progress intact. See the [Atari outro comparison](docs/outro.md) for the
+reference timing, sound cues, and adaptations to the GBC screen.
 
 Level conversion regressions run with `python3 tools/test_convert_atari_levels.py`.
 With Coffee GB and matching linker symbols, `java --class-path "$CAMERA_TEST_CP"

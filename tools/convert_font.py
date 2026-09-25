@@ -212,7 +212,7 @@ def main():
     # halves, Robbo walk/stand/wave frames, ground.  metatile N -> S.FNT chars
     # base,base+1,base+32,base+33 where base = N*2 (N<16) else 64+(N-16)*2 (PUT_).
     # Each metatile -> 4 GBC tiles (TL,TR,BL,BR).  Order defines the END_* offsets.
-    ENDING_MT = [0, 2, 3, 5, 6, 16, 18, 19, 21]   # star shipL shipR walk1 stand ground wave1 wave2 walk2
+    ENDING_MT = [0, 2, 3, 5, 6, 16, 18, 19, 21, 22]   # star shipL shipR walk1 stand ground wave1 wave2 walk2 stand2
     ending = []
     for N in ENDING_MT:
         b = N * 2 if N < 16 else 64 + (N - 16) * 2
@@ -233,8 +233,17 @@ def main():
         h.write("#define LOGO_RAINBOW_N %d\n" % rainbow_n)
         h.write("#define ENDING_NTILES %d\n" % len(ending))
         # each metatile = 4 tiles (TL,TR,BL,BR); offsets into ending_tiles
-        for k, nm in enumerate(("STAR","SHIPL","SHIPR","WALK1","STAND","GROUND","WAVE1","WAVE2","WALK2")):
+        for k, nm in enumerate(("STAR","SHIPL","SHIPR","WALK1","STAND","GROUND","WAVE1","WAVE2","WALK2","STAND2")):
             h.write("#define END_%s %d\n" % (nm, k * 4))
+        # TITLE.ASM CONGR: keep small constants in the ending module's own
+        # ROM bank, avoiding extra HOME code or WRAM copies of graphics data.
+        h.write("#define END_PATTERN_ROWS {" + ",".join("0x%02X" % v for v in i[96]) + "}\n")
+        for name, register in (("BG", 0x00), ("PF0", 0x32), ("PF1", 0xC8),
+                               ("PF2", 0x0C), ("PF3", 0x74)):
+            h.write("#define END_COLOR_%s 0x%04X\n" % (name, bgr555(PAL_COLORS[register])))
+        h.write("#define END_TEXT_BG 0x%04X\n" % bgr555(PAL_COLORS[0x02]))
+        h.write("#define END_TEXT_FADE_COLORS {" + ",".join(
+            "0x%04X" % bgr555(PAL_COLORS[v & 0xFE]) for v in range(15)) + "}\n")
         h.write("extern const unsigned char font_tiles[];\n")
         h.write("extern const unsigned char robbo_chars[];\n")
         h.write("extern const unsigned char wall_chars[];\n")

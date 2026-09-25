@@ -19,7 +19,7 @@ void hud_gr_draw(void) __banked;
 void render_gr_logo(void);
 void render_gr_ending(void);
 void ending_gr_show(void) __banked;
-void title_gr_show(void) __banked;
+void title_gr_show(unsigned char after_ending) __banked;
 unsigned char pause_gr(void) __banked;
 unsigned char warp_gr(void) __banked;
 
@@ -152,7 +152,7 @@ void main(void) {
     gr_score = 0;
 
     render_gr_logo();       /* load the logo into font tiles 0..26 */
-    title_gr_show();        /* title screen; returns on START */
+    title_gr_show(0);       /* title screen; returns on START */
     render_gr_init();       /* restore the font (title used the logo in 0..26) */
 
     start_level();
@@ -169,7 +169,7 @@ void main(void) {
             ending_gr_show();            /* banked: animation + congratulations */
             game_mode = GAME_ON;
             render_gr_logo();
-            title_gr_show();
+            title_gr_show(1);
             render_gr_init();
             level_packs[0].level_selected = 1;
             gr_score = 0;
@@ -226,7 +226,6 @@ void main(void) {
                 DISPLAY_OFF;
                 render_gr_ending();
                 ending_gr_show();
-                snd_stop();
                 /* The scene replaced the playfield tiles, map and palettes.
                    Rebuild them from the existing board; keep game state intact. */
                 DISPLAY_OFF;
@@ -234,7 +233,7 @@ void main(void) {
                 render_gr_load();
             } else if (r == 4) {                            /* quit to title */
                 render_gr_logo();
-                title_gr_show();
+                title_gr_show(0);
                 render_gr_init();
                 level_packs[0].level_selected = 1;
                 gr_score = 0;

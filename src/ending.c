@@ -1,12 +1,7 @@
-/* Ending sequence, ported from the Atari TITLE.ASM CONGR routine: Robbo walks
-   in, a starship lands, Robbo waves, boards it, and it flies off; then an
-   English congratulations text (the original is Polish; translated per request).
-
-   Banked (like menu.c).  Graphics are the S.FNT metatiles converted to
-   ending_tiles[] (loaded into BG tiles 0..ENDING_NTILES-1, over the playfield
-   font); text uses the I.FNT font already at tile 128.  Scene palette (BG pal 0)
-   uses the authentic PAL colours from COLS+6: black bg, brown ground, green
-   ship/Robbo, white highlights. */
+/* Atari TITLE.ASM CONGR, scaled to the GBC screen. The original WAIT falls
+   through to HALT, and DISP's scanline-synchronized redraw adds another frame:
+   WAIT 6 scene poses are visibly eight PAL frames apart in the reference video.
+   Keep the original poses, sound cues, patterned fade and random text dissolve. */
 #pragma bank 255
 #include <gb/gb.h>
 #include <gb/cgb.h>
@@ -14,189 +9,282 @@
 #include "sound.h"
 #include "gen/gfx_tiles.h"
 
-void render_gr_init(void);
+#define BLANK 0x40
+#define PATTERN_TILE 245
+#define WIPE_TILE 246
+#define GROUND_ROW 16
+#define FEET_ROW 14
+#define SHIP_COL 8
+#define HIDDEN 255
+#define POSE_FRAMES 8
 
-#define EPAL   0            /* scene BG palette                       */
-#define BLANK  0x40         /* the all-black playfield font tile (64) */
-#define TXT    128          /* I.FNT font base (ASCII 0x20 = tile 128) */
-#define GROUND_ROW 16       /* ground occupies rows 16..17 (screen bottom) */
-#define FEET_ROW   14       /* Robbo/ship stand here (rows 14..15) on the ground */
-
-/* 17 stars: Atari STAT (x 0..30, y 0..12) scaled to the 20x14 GBC sky. */
 static const unsigned char STARS[17][2] = {
     {0,0},{16,0},{10,1},{18,1},{10,2},{15,3},{17,4},{3,4},{11,8},{15,8},
     {3,9},{7,10},{5,2},{8,5},{0,6},{1,12},{16,12}
 };
+static const unsigned char pattern_rows[8] = END_PATTERN_ROWS;
+static const palette_color_t fade_colors[15] = END_TEXT_FADE_COLORS;
+static const palette_color_t scene_palettes[8] = {
+    END_COLOR_BG, END_COLOR_PF0, END_COLOR_PF1, END_COLOR_PF2,
+    END_COLOR_BG, END_COLOR_PF0, END_COLOR_PF1, END_COLOR_PF3
+};
+static const char message[18][21] = {
+    "~~~~~~~~~~~~~~~~~~~~",
+    "~                  ~",
+    "~                  ~",
+    "~ CONGRATULATIONS  ~",
+    "~                  ~",
+    "~                  ~",
+    "~ ROBBO HAS BROKEN ~",
+    "~THROUGH THE ENEMY ~",
+    "~ PLANETARY SYSTEM ~",
+    "~                  ~",
+    "~ THE PLANS IN HIS ~",
+    "~ MEMORY ARE VERY  ~",
+    "~VALUABLE TO EARTH ~",
+    "~                  ~",
+    "~                  ~",
+    "~   PRESS START    ~",
+    "~                  ~",
+    "~~~~~~~~~~~~~~~~~~~~"
+};
 
-/* draw a metatile (2x2 tiles) at tile (col,row); off = ending_tiles offset */
-void draw_mt(unsigned char col, unsigned char row, unsigned char off) __banked {
-    unsigned char t;
-    t = off;     set_bkg_tiles(col,     row,     1, 1, &t);
-    t = off + 1; set_bkg_tiles(col + 1, row,     1, 1, &t);
-    t = off + 2; set_bkg_tiles(col,     row + 1, 1, 1, &t);
-    t = off + 3; set_bkg_tiles(col + 1, row + 1, 1, 1, &t);
+static unsigned int frame_deadline, pal_fraction, reveal_rng;
+static unsigned char pal_frame, pattern_active, ship_row;
+
+void pattern_draw(void) __banked {
+    unsigned char tile[16], row, bits;
+    for (row = 0; row < 8; row++) {
+        bits = pattern_rows[(row - pal_frame) & 7];
+        tile[row * 2] = tile[row * 2 + 1] = bits;
+    }
+    set_bkg_data(PATTERN_TILE, 1, tile);
 }
 
-/* restore the static background (black sky, ground, or a star) at one tile */
-void bg_cell(unsigned char col, unsigned char row) __banked {
-    unsigned char t = BLANK, i;
-    if (row >= GROUND_ROW) t = END_GROUND + ((col & 1)) + ((row - GROUND_ROW) ? 2 : 0);
-    else
-        for (i = 0; i < 17; i++)
-            if (STARS[i][0] == col && STARS[i][1] == row) { t = END_STAR + 1; break; }
-    set_bkg_tiles(col, row, 1, 1, &t);
-}
-/* erase a 2x2 metatile footprint back to background */
-void erase_mt(unsigned char col, unsigned char row) __banked {
-    bg_cell(col, row); bg_cell(col + 1, row);
-    bg_cell(col, row + 1); bg_cell(col + 1, row + 1);
+void ending_clock_reset(void) __banked {
+    __critical { frame_deadline = sys_time; }
+    pal_fraction = 0;
+    pal_frame = 0;
 }
 
+/* One PAL frame is 3287/2744 GBC frames. An absolute deadline includes drawing
+   time in each interval; it cannot accumulate an extra frame per pose. */
 void ewait(unsigned char frames) __banked {
-    while (frames--) wait_vbl_done();
+    unsigned int now;
+    while (frames--) {
+        frame_deadline++;
+        pal_fraction += 543;
+        if (pal_fraction >= 2744) { pal_fraction -= 2744; frame_deadline++; }
+        while (1) {
+            __critical { now = sys_time; }
+            if ((int)(now - frame_deadline) >= 0) break;
+            wait_vbl_done();
+        }
+        pal_frame++;
+        if (pattern_active) pattern_draw();
+    }
 }
 
-/* Atari ending sound indices (TITLE.ASM CONGR SOUND_ calls) -> port snd_play. */
-#define SND_WALK  5    /* Robbo walks         ($05) */
-#define SND_LAND  14   /* ship lands          ($0E) */
-#define SND_WAVE  13   /* Robbo waves         ($0D) */
-#define SND_FLY   11   /* ship flies away     ($0B) */
-#define SND_TEXT  0    /* congratulations     ($00) */
-
-/* ---- text ---- */
-void etext(unsigned char col, unsigned char row, const char *s) __banked {
-    unsigned char t;
-    while (*s) { t = (unsigned char)(TXT + (*s - 0x20)); set_bkg_tiles(col++, row, 1, 1, &t); s++; }
-}
-void etext_c(unsigned char row, const char *s) __banked {  /* centred */
-    unsigned char n = 0; const char *p = s;
-    while (*p++) n++;
-    etext((unsigned char)((20 - n) / 2), row, s);
-}
-void eclear(void) __banked {
-    unsigned char x, y, t = BLANK;
-    for (y = 0; y < 18; y++) for (x = 0; x < 20; x++) set_bkg_tiles(x, y, 1, 1, &t);
+void draw_mt(unsigned char col, unsigned char row, unsigned char off,
+             unsigned char palette) __banked {
+    unsigned char tiles[4], attrs[4], i;
+    for (i = 0; i < 4; i++) { tiles[i] = off + i; attrs[i] = palette; }
+    set_bkg_tiles(col, row, 2, 2, tiles);
+    set_bkg_attributes(col, row, 2, 2, attrs);
 }
 
-/* draw the whole static scene (black sky + stars + ground row) */
+void bg_cell(unsigned char col, unsigned char row) __banked {
+    unsigned char tile = BLANK, palette = 0, i;
+    if (row >= GROUND_ROW) {
+        tile = END_GROUND + (col & 1) + ((row - GROUND_ROW) ? 2 : 0);
+        palette = 1; /* Atari ground uses the inverse glyph. */
+    } else {
+        for (i = 0; i < 17; i++)
+            if (STARS[i][0] == col && STARS[i][1] == row) { tile = END_STAR + 1; break; }
+    }
+    set_bkg_tiles(col, row, 1, 1, &tile);
+    set_bkg_attributes(col, row, 1, 1, &palette);
+}
+
 void draw_scene(void) __banked {
-    unsigned char x, y, t = BLANK, i;
-    for (y = 0; y < GROUND_ROW; y++) for (x = 0; x < 20; x++) set_bkg_tiles(x, y, 1, 1, &t);
-    for (i = 0; i < 17; i++) { t = END_STAR + 1; set_bkg_tiles(STARS[i][0], STARS[i][1], 1, 1, &t); }
-    for (x = 0; x < 20; x += 2) draw_mt(x, GROUND_ROW, END_GROUND);
+    unsigned char tiles[20], attrs[20], x, y;
+    for (x = 0; x < 20; x++) { tiles[x] = BLANK; attrs[x] = 0; }
+    for (y = 0; y < 18; y++) {
+        set_bkg_tiles(0, y, 20, 1, tiles);
+        set_bkg_attributes(0, y, 20, 1, attrs);
+    }
+    for (x = 0; x < 17; x++) bg_cell(STARS[x][0], STARS[x][1]);
+    for (x = 0; x < 20; x += 2) draw_mt(x, GROUND_ROW, END_GROUND, 1);
 }
 
-/* draw the ship (2 metatiles wide = 4x2 tiles) at (col,row) */
-void draw_ship(unsigned char col, unsigned char row) __banked {
-    draw_mt(col, row, END_SHIPL);
-    draw_mt(col + 2, row, END_SHIPR);
-}
-void erase_ship(unsigned char col, unsigned char row) __banked {
-    erase_mt(col, row); erase_mt(col + 2, row);
-}
-
-/* Robbo is drawn with 4 hardware sprites (colour 0 = transparent) so that when
-   he steps onto the ship the ship shows through instead of a black box.  The
-   ending tiles are shared between BG and OBJ (both at 0x8000), so the sprites
-   reference the same ending_tiles indices (END_WALK1 etc.). */
-void robbo_at(unsigned char col, unsigned char row, unsigned char frame) __banked {
-    unsigned char px = (unsigned char)(col * 8 + 8), py = (unsigned char)(row * 8 + 16);
-    set_sprite_tile(0, frame);     move_sprite(0, px,     py);
-    set_sprite_tile(1, frame + 1); move_sprite(1, px + 8, py);
-    set_sprite_tile(2, frame + 2); move_sprite(2, px,     py + 8);
-    set_sprite_tile(3, frame + 3); move_sprite(3, px + 8, py + 8);
-}
 void robbo_hide(void) __banked {
-    unsigned char i; for (i = 0; i < 4; i++) move_sprite(i, 0, 0);
+    unsigned char i;
+    for (i = 0; i < 4; i++) move_sprite(i, 0, 0);
 }
 
-/* ===================================================================== */
-void ending_gr_show(void) __banked {
-    const palette_color_t epal[4] = { 0x0000, 0x040A, 0x060A, 0x56B5 };
-    unsigned char rc, sc, sr, i;
+/* Pixel positions retain all nine walking poses on the narrower GBC screen. */
+void robbo_at(unsigned char x, unsigned char frame) __banked {
+    unsigned char i, sx;
+    if (x == HIDDEN) { robbo_hide(); return; }
+    for (i = 0; i < 4; i++) {
+        sx = x + ((i & 1) ? 8 : 0);
+        set_sprite_tile(i, frame + i);
+        set_sprite_prop(i, S_PRIORITY);
+        /* The original draws the ship over Robbo as he boards it. */
+        if (ship_row == FEET_ROW && sx + 8 <= (SHIP_COL + 4) * 8 && sx >= SHIP_COL * 8)
+            move_sprite(i, 0, 0);
+        else move_sprite(i, sx + 8, FEET_ROW * 8 + 16 + ((i & 2) ? 8 : 0));
+    }
+}
 
+void scene_pose(unsigned char x, unsigned char frame, signed char atari_ship_y) __banked {
+    unsigned char col, row, palette;
+    ewait(POSE_FRAMES);
+    if (ship_row != HIDDEN)
+        for (row = ship_row; row < ship_row + 2; row++)
+            for (col = SHIP_COL; col < SHIP_COL + 4; col++) bg_cell(col, row);
+    ship_row = atari_ship_y < 0 ? HIDDEN : (unsigned char)atari_ship_y * 7 / 6;
+    robbo_at(x, frame);
+    if (ship_row != HIDDEN) {
+        palette = (pal_frame & 16) ? 1 : 0;
+        draw_mt(SHIP_COL, ship_row, END_SHIPL, palette);
+        draw_mt(SHIP_COL + 2, ship_row, END_SHIPR, palette);
+    }
+}
+
+void text_palette(palette_color_t foreground, palette_color_t background) __banked {
+    palette_color_t normal[4], inverse[4];
+    unsigned char i;
+    for (i = 0; i < 3; i++) { normal[i] = background; inverse[i] = foreground; }
+    normal[3] = foreground; inverse[3] = background;
+    set_bkg_palette(0, 1, normal);
+    set_bkg_palette(2, 1, inverse);
+}
+
+void text_cell(unsigned char x, unsigned char y) __banked {
+    unsigned char c = message[y][x], tile, palette;
+    tile = c == '~' ? PATTERN_TILE : 128 + c - 32;
+    palette = y == 3 && c != ' ' && c != '~' ? 2 : 0;
+    set_bkg_tiles(x, y, 1, 1, &tile);
+    set_bkg_attributes(x, y, 1, 1, &palette);
+}
+
+/* The original chooses three random cells across its 768-byte text buffer per
+   busy loop. Fourteen cells per PAL frame preserves its roughly three-second
+   dissolve after scaling the screen to 360 cells. This RNG is local so a
+   pause-menu preview cannot alter the game's future random events. */
+void reveal_cells(void) __banked {
+    unsigned char i;
+    unsigned int position;
+    for (i = 0; i < 14; i++) {
+        reveal_rng ^= reveal_rng << 7;
+        reveal_rng ^= reveal_rng >> 9;
+        reveal_rng ^= reveal_rng << 3;
+        position = reveal_rng % 360;
+        text_cell(position % 20, position / 20);
+    }
+}
+
+/* A bright band rises from the bottom, like Atari's ZNIK raster wipe. The
+   window gives us pixel movement without changing the interrupt handlers. */
+void text_wipe(void) __banked {
+    static const unsigned char band[16] = {
+        255,255, 255,255, 0,255, 0,255, 255,0, 255,0, 0,0, 0,0
+    };
+    palette_color_t palette[4] = {0, END_TEXT_BG, END_COLOR_PF2, 0x7FFF};
+    unsigned char tiles[20], attrs[20], x, y;
+    unsigned int step;
+    pattern_active = 0;
+    DISPLAY_OFF;
+    set_bkg_data(WIPE_TILE, 1, band);
+    set_bkg_palette(3, 1, palette);
+    for (x = 0; x < 20; x++) { tiles[x] = BLANK; attrs[x] = 3; }
+    for (y = 0; y < 18; y++) {
+        set_win_tiles(0, y, 20, 1, tiles);
+        VBK_REG = 1; set_win_tiles(0, y, 20, 1, attrs); VBK_REG = 0;
+    }
+    for (x = 0; x < 20; x++) tiles[x] = WIPE_TILE;
+    set_win_tiles(0, 0, 20, 1, tiles);
+    WX_REG = 7; WY_REG = 144; SHOW_WIN;
+    DISPLAY_ON;
+    ending_clock_reset();
+    snd_play(9);
+    for (step = 1; step <= 117; step++) {
+        ewait(1);
+        WY_REG = 144 - (unsigned char)(step * 144 / 117);
+    }
+    /* Clear the bright edge once it has crossed the top of the screen. */
+    for (x = 0; x < 20; x++) tiles[x] = BLANK;
+    set_win_tiles(0, 0, 20, 1, tiles);
+    WY_REG = 0;
+    snd_play(13);
+}
+
+void ending_text(void) __banked {
+    unsigned char tiles[20], attrs[20], x, y;
+    DISPLAY_OFF;
+    HIDE_SPRITES;
+    text_palette(0, 0);
+    pattern_active = 1;
+    pattern_draw();
+    for (x = 0; x < 20; x++) { tiles[x] = PATTERN_TILE; attrs[x] = 0; }
+    for (y = 0; y < 18; y++) {
+        set_bkg_tiles(0, y, 20, 1, tiles);
+        set_bkg_attributes(0, y, 20, 1, attrs);
+    }
+    DISPLAY_ON;
+    ending_clock_reset();
+    for (y = 0; y < 15; y++) { text_palette(fade_colors[y], 0); ewait(3); }
+    text_palette(fade_colors[14], END_TEXT_BG);
+    snd_play(0);
+    reveal_rng = 0xACE1;
+    do { reveal_cells(); ewait(1); } while (!(joypad() & J_START));
+    waitpadup();
+    text_wipe();
+    DISPLAY_OFF;
+    HIDE_WIN;
+}
+
+void ending_gr_show(void) __banked {
+    unsigned char i;
     snd_stop();
     DISPLAY_OFF;
     HIDE_WIN;
     SCX_REG = 0; SCY_REG = 0;
-    /* ending_tiles were loaded into 0..ENDING_NTILES-1 by the HOME caller. */
-    set_bkg_palette(EPAL, 1, epal);
-    { unsigned char arow[20], y;                                 /* all tiles use pal 0 */
-      for (y = 0; y < 20; y++) arow[y] = EPAL;
-      VBK_REG = 1;
-      for (y = 0; y < 18; y++) set_bkg_tiles(0, y, 20, 1, arow);
-      VBK_REG = 0; }
+    VBK_REG = 0;
+    set_bkg_palette(0, 2, scene_palettes);
+    set_sprite_palette(0, 1, scene_palettes);
     draw_scene();
-    { const palette_color_t opal[4] = { 0x0000, 0x040A, 0x060A, 0x56B5 };  /* idx0 transparent */
-      set_sprite_palette(0, 1, opal); }
-    SPRITES_8x8; robbo_hide();
+    SPRITES_8x8;
+    robbo_hide();
+    ship_row = HIDDEN;
+    pattern_active = 0;
     SHOW_BKG; SHOW_SPRITES; DISPLAY_ON;
+    ending_clock_reset();
+    ewait(51);
 
-    sc = 8;                                 /* ship lands centred (cols 8..11) */
+    snd_play(5);
+    for (i = 0; i < 9; i++)
+        scene_pose(144 - i * 4, (i & 1) ? END_WALK1 : END_WALK2, -1);
+    scene_pose(108, END_STAND, -1);
+    ewait(11);
 
-    /* Robbo walks in from the right, stopping just right of the ship (col 12) */
-    snd_play(SND_WALK);
-    for (rc = 16; rc > 12; rc--) {
-        robbo_at(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
-        ewait(7);
-    }
-    robbo_at(rc, FEET_ROW, END_STAND);
-    ewait(20);
+    snd_play(14);
+    for (i = 0; i < 12; i++)
+        scene_pose(108, (i & 1) ? END_STAND2 : END_STAND, i);
 
-    /* the ship descends from the top to the ground (Robbo sprite stays put) */
-    snd_play(SND_LAND);
-    for (sr = 0; sr <= FEET_ROW; sr++) {
-        draw_ship(sc, sr);
-        ewait(5);
-        if (sr < FEET_ROW) erase_ship(sc, sr);
-    }
-    ewait(15);
-
-    /* Robbo waves 14 times (alternating wave frames) */
-    snd_play(SND_WAVE);
+    snd_play(13);
     for (i = 0; i < 14; i++) {
-        robbo_at(rc, FEET_ROW, (i & 1) ? END_WAVE1 : END_WAVE2);
-        ewait(8);
+        scene_pose(108, END_WAVE2, 12);
+        scene_pose(108, END_WAVE1, 12);
     }
-    robbo_at(rc, FEET_ROW, END_STAND);
-    ewait(15);
 
-    /* Robbo walks left onto the ship (transparent sprite - the ship shows
-       through), then boards and disappears */
-    snd_play(SND_WALK);
-    while (rc > 10) {
-        rc--;
-        robbo_at(rc, FEET_ROW, (rc & 1) ? END_WALK1 : END_WALK2);
-        ewait(8);
-    }
-    robbo_hide();                             /* Robbo is aboard: no longer visible */
-    ewait(20);
+    for (i = 0; i < 9; i++)
+        scene_pose(108 - i * 4, (i & 1) ? END_WALK1 : END_WALK2, 12);
 
-    /* the ship (Robbo aboard, unseen) flies up and off the top */
-    snd_play(SND_FLY);
-    for (sr = FEET_ROW; ; sr--) {
-        draw_ship(sc, sr);
-        ewait(5);
-        erase_ship(sc, sr);
-        if (sr == 0) break;
-    }
-    ewait(30);
-    HIDE_SPRITES;
-
-    /* ---- congratulations text (English), all on one screen ---- */
-    /* The I.FNT font at tile 128 has letters + digits but no punctuation, so the
-       text is uppercase words only. */
-    eclear();
-    snd_play(SND_TEXT);
-    etext_c(3,  "CONGRATULATIONS");
-    etext_c(6,  "ROBBO HAS BROKEN");
-    etext_c(7,  "THROUGH THE ENEMY");
-    etext_c(8,  "PLANETARY SYSTEM");
-    etext_c(10, "THE PLANS IN HIS");
-    etext_c(11, "MEMORY ARE VERY");
-    etext_c(12, "VALUABLE TO EARTH");
-    etext_c(15, "PRESS START");
-    /* PRESS START stays on screen until pressed */
-    while (1) { wait_vbl_done(); if (joypad() & J_START) break; }
-    waitpadup();
+    snd_play(11);
+    for (i = 0; i < 14; i++) scene_pose(HIDDEN, END_STAND, 12 - (signed char)i);
+    snd_play(5);
+    ewait(51);
+    ending_text();
 }

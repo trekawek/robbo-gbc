@@ -1,8 +1,8 @@
 /* Coffee GB regression for previewing the ending from the pause menu.
  *
- * java --class-path "$COFFEE_GB_CP" tools/OutroTest.java ROM.gbc ROM.noi
+ * java --class-path "$COFFEE_GB_CP" tools/OutroTest.java ROM.gbc ROM.noi [CAPTURE_DIR]
  * The linker symbols must be from the same ROM build. Input goes through the
- * production menu; the loaded level, actors, board and rendering stay live.
+ * production menu, and returning from the preview preserves the loaded game.
  */
 import eu.rekawek.coffeegb.core.Gameboy;
 import eu.rekawek.coffeegb.core.GameboyType;
@@ -14,26 +14,47 @@ import eu.rekawek.coffeegb.core.joypad.Button;
 import eu.rekawek.coffeegb.core.joypad.ButtonPressEvent;
 import eu.rekawek.coffeegb.core.joypad.ButtonReleaseEvent;
 import eu.rekawek.coffeegb.core.serial.SerialEndpoint;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 
 @SuppressWarnings("deprecation")
 public class OutroTest implements AutoCloseable {
     private static final int WIDTH = 16, HEIGHT = 31, CELL_BYTES = 14;
-    private static final int KEY = 7, LCDC = 0xff40, WY = 0xff4a;
+    private static final int KEY = 7, LCDC = 0xff40, WY = 0xff4a, NR42 = 0xff21;
+    private static final int WAVE_A = 24, WAVE_B = 28;
     private final EventBus bus = new EventBusImpl();
     private final Gameboy gb;
     private final Map<String, Integer> symbols = new HashMap<>();
+    private final Path captures;
+    private final Set<String> captured = new HashSet<>();
     private final int board, robbo, pack, score, currentBank;
     private long ticks;
     private int frames;
+    private boolean watchEnding;
+    private final int[] waveTiles = new int[32], waveStarts = new int[32];
+    private int wavePoses, endingStartFrame;
+    private int textFirstFrame = -1, textLastChangeFrame, textMapChanges;
+    private int textBorderChanges, lastTextHash, lastBorderHash;
+    private int fadePaletteChanges, lastFadePaletteHash;
+    private boolean sawTextMap, sawBorder, sawFadePalette;
+    private boolean watchWipe, sawWipeWindow;
+    private int lastWipeY = -1, wipeMovement;
+    private String captureNext;
 
-    private OutroTest(Path rom, Path noi) throws Exception {
+    private OutroTest(Path rom, Path noi, Path captures) throws Exception {
+        this.captures = captures;
+        if (captures != null) Files.createDirectories(captures);
         var pattern = Pattern.compile("^DEF\\s+(\\S+)\\s+0x([0-9a-fA-F]+)$");
         for (String line : Files.readAllLines(noi)) {
             var match = pattern.matcher(line);
@@ -48,8 +69,83 @@ public class OutroTest implements AutoCloseable {
                 .setBootstrapMode(Gameboy.BootstrapMode.SKIP)
                 .setGameboyType(GameboyType.CGB).setSupportBatterySave(false).build();
         gb.init(bus, SerialEndpoint.NULL_ENDPOINT, null);
-        bus.register((Display.GbcFrameReadyEvent event) -> frames++,
+        bus.register(this::onFrame,
                 Display.GbcFrameReadyEvent.class);
+    }
+
+    private void onFrame(Display.GbcFrameReadyEvent event) {
+        frames++;
+        if (captureNext != null) {
+            capture(event, captureNext);
+            captureNext = null;
+        }
+        if (watchWipe && (b(LCDC) & 0x20) != 0) {
+            int wy = b(WY);
+            if (lastWipeY >= 0 && wy < lastWipeY) wipeMovement++;
+            sawWipeWindow = true;
+            lastWipeY = wy;
+            if (wipeMovement == 60) capture(event, "text-wipe");
+        }
+        if (!watchEnding) return;
+        var oam = gb.getGpu().captureDebugGraphicsInspection().oam();
+        int y = oam.unsignedByteAt(0), x = oam.unsignedByteAt(1);
+        int tile = oam.unsignedByteAt(2);
+        if (y == 128 && x == 116 && (tile == WAVE_A || tile == WAVE_B)
+                && (wavePoses == 0 || waveTiles[wavePoses - 1] != tile)) {
+            check(wavePoses < waveTiles.length, "too many visible wave poses");
+            waveTiles[wavePoses] = tile;
+            waveStarts[wavePoses++] = frames;
+        }
+        if (wavePoses == 1 && frames - waveStarts[0] == 2)
+            capture(event, "scene-wave");
+        if (wavePoses < 28) return;
+        int paletteHash = 1;
+        byte[] palette = gb.getGpu().captureBessBackgroundPalettes();
+        for (int i = 0; i < 16; i++) paletteHash = paletteHash * 31 + palette[i];
+        if (sawFadePalette && textFirstFrame < 0 && paletteHash != lastFadePaletteHash)
+            fadePaletteChanges++;
+        sawFadePalette = true;
+        lastFadePaletteHash = paletteHash;
+        if (fadePaletteChanges == 4 && textFirstFrame < 0)
+            capture(event, "text-fade");
+
+        int glyphs = 0, mapHash = 1;
+        for (int row = 1; row < 17; row++) for (int col = 1; col < 19; col++) {
+            int code = gb.getGpu().getVideoRam0().getByte(0x9800 + row * 32 + col) & 255;
+            if (code >= 128 && code < 224) glyphs++;
+            mapHash = mapHash * 31 + code;
+        }
+        if (glyphs == 0) return;
+        if (textFirstFrame < 0) textFirstFrame = frames;
+        if (sawTextMap && mapHash != lastTextHash) {
+            textMapChanges++;
+            textLastChangeFrame = frames;
+        }
+        sawTextMap = true;
+        lastTextHash = mapHash;
+        if (textMapChanges == 20) capture(event, "text-reveal");
+
+        int[] pixels = event.pixels();
+        int borderHash = 1;
+        for (int row = 0; row < 144; row++) for (int col = 0; col < 160; col++)
+            if (row < 8 || row >= 136 || col < 8 || col >= 152)
+                borderHash = borderHash * 31 + pixels[row * 160 + col];
+        if (sawBorder && borderHash != lastBorderHash) textBorderChanges++;
+        sawBorder = true;
+        lastBorderHash = borderHash;
+    }
+
+    private void capture(Display.GbcFrameReadyEvent event, String name) {
+        if (captures == null || !captured.add(name)) return;
+        int[] pixels = new int[160 * 144];
+        event.toRgb(pixels, false);
+        BufferedImage image = new BufferedImage(160, 144, BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, 160, 144, pixels, 0, 160);
+        try {
+            ImageIO.write(image, "png", captures.resolve(name + ".png").toFile());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private int symbol(String name) {
@@ -78,7 +174,7 @@ public class OutroTest implements AutoCloseable {
                 && (address < 0x4000 || b(currentBank) == address >> 16);
     }
     private void until(BooleanSupplier condition, String description) {
-        long deadline = ticks + 45_000_000;
+        long deadline = ticks + 120_000_000;
         while (!condition.getAsBoolean()) {
             check(ticks < deadline, "timeout waiting for " + description
                     + " at PC=" + Integer.toHexString(gb.getCpu().getRegisters().getPC()));
@@ -166,14 +262,47 @@ public class OutroTest implements AutoCloseable {
         runFrames(2); // pause_gr waits for A to be released before returning
         release(Button.A);
         next(symbol("_ending_gr_show"));
+        endingStartFrame = frames;
+        watchEnding = true;
         until(this::endingTextReady, "ending congratulations screen");
+        captureNext = "text-complete";
+        runFrames(2); // include the completed text in the frame-level trace
+        watchEnding = false;
+        check(wavePoses == 28, "expected 14 complete waves (28 visible poses), got " + wavePoses);
+        check(waveStarts[0] - endingStartFrame > 220,
+                "arrival and landing before the wave sequence were too short");
+        for (int i = 1; i < wavePoses; i++) {
+            check(waveTiles[i] != waveTiles[i - 1], "wave poses did not alternate");
+            int gap = waveStarts[i] - waveStarts[i - 1];
+            check(gap >= 8 && gap <= 12,
+                    "wave pose " + i + " lasted " + gap + " GBC frames, expected ~8 PAL frames");
+        }
+        check(frames - endingStartFrame >= 800,
+                "outro animation/text transition ended too early");
+        check(textFirstFrame - endingStartFrame >= 875
+                        && textFirstFrame - endingStartFrame <= 910,
+                "scene and PAL-paced text fade ran for "
+                        + (textFirstFrame - endingStartFrame) + " GBC frames");
+        check(fadePaletteChanges >= 8,
+                "text transition did not show a gradual palette fade");
+        check(textFirstFrame > waveStarts[wavePoses - 1]
+                        && textLastChangeFrame - textFirstFrame >= 90
+                        && textMapChanges >= 20,
+                "text did not reveal through intermediate screen states");
+        check(textBorderChanges >= 8,
+                "patterned border did not animate while the text appeared");
         check(b(WY) == 0 || (b(LCDC) & 0x20) == 0,
                 "ending left the pause window covering its scene");
+        int exitStartFrame = frames;
+        watchWipe = true;
         press(Button.START);
         runFrames(2); // ending_gr_show also waits for the confirming key to go up
         release(Button.START);
         next(symbol("_render_gr_camera_resume"));
-
+        watchWipe = false;
+        check(sawWipeWindow && wipeMovement >= 20
+                        && frames - exitStartFrame >= 130,
+                "closing raster wipe did not sweep the screen before returning");
         check(word(pack + 4) == beforeLevel, "outro preview changed the selected level");
         check(dword(score) == beforeScore, "outro preview changed the score");
         check(word(robbo) == beforeX && word(robbo + 2) == beforeY,
@@ -187,6 +316,18 @@ public class OutroTest implements AutoCloseable {
         runFrames(12);
         check(b(WY) == 128 && (b(LCDC) & 0x20) != 0,
                 "game HUD was not restored after the outro");
+        int previewCue = b(NR42) >> 4;
+        check(previewCue > 0, "closing sound cue stopped after gameplay resumed"
+                + " (NR42=" + Integer.toHexString(b(NR42)) + ")");
+        System.out.printf("Outro frames: scene-to-text=%d, full-text=%d, "
+                        + "wave poses=%d, fade steps=%d, text states=%d over %d frames, "
+                        + "border states=%d, wipe steps=%d over %d frames, return cue=%d%n",
+                textFirstFrame - endingStartFrame, exitStartFrame - endingStartFrame,
+                wavePoses, fadePaletteChanges,
+                textMapChanges, textLastChangeFrame - textFirstFrame,
+                textBorderChanges, wipeMovement, frames - exitStartFrame, previewCue);
+        captureNext = "game-return";
+        runFrames(2);
         press(Button.START);
         next(symbol("_pause_gr"));
         release(Button.START);
@@ -202,12 +343,45 @@ public class OutroTest implements AutoCloseable {
         System.out.println("PASS pause-menu OUTRO preview, ending, state preservation, second pause and QUIT");
     }
 
+    private void testCanonicalEnding() {
+        runTicks(5_000_000);
+        press(Button.START);
+        runTicks(1_200_000);
+        release(Button.START);
+        next(symbol("_update_game"));
+        // The capsule sets END_SCREEN. Enter that production branch directly;
+        // this check concerns its distinct return route, not puzzle completion.
+        putWord(symbol("_game_mode"), 2);
+        next(symbol("_ending_gr_show"));
+        until(this::endingTextReady, "canonical ending congratulations screen");
+        press(Button.START);
+        runFrames(2);
+        release(Button.START);
+        next(symbol("_title_gr_show"));
+        check(word(symbol("_game_mode")) == 1,
+                "canonical ending did not reset game mode for the title");
+        int titleEntryFrame = frames;
+        until(() -> (b(LCDC) & 0x80) != 0, "canonical title display enabled");
+        runFrames(8);
+        int titleCue = b(NR42) >> 4;
+        check(titleCue > 0,
+                "closing cue stopped on the canonical title screen"
+                        + " (NR42=" + Integer.toHexString(b(NR42))
+                        + ", title load=" + (frames - titleEntryFrame - 8) + " frames)");
+        System.out.println("PASS canonical END_SCREEN reaches title with closing cue audible (volume "
+                + titleCue + " at entry)");
+    }
+
     @Override public void close() { try { gb.close(); } finally { bus.close(); } }
     public static void main(String[] args) throws Exception {
-        if (args.length != 2)
-            throw new IllegalArgumentException("Usage: OutroTest ROM.gbc ROM.noi");
-        try (OutroTest test = new OutroTest(Path.of(args[0]), Path.of(args[1]))) {
+        if (args.length < 2 || args.length > 3)
+            throw new IllegalArgumentException("Usage: OutroTest ROM.gbc ROM.noi [CAPTURE_DIR]");
+        Path captures = args.length == 3 ? Path.of(args[2]) : null;
+        try (OutroTest test = new OutroTest(Path.of(args[0]), Path.of(args[1]), captures)) {
             test.test();
+        }
+        try (OutroTest test = new OutroTest(Path.of(args[0]), Path.of(args[1]), null)) {
+            test.testCanonicalEnding();
         }
     }
 }
